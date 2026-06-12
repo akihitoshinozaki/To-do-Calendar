@@ -1,26 +1,24 @@
-# Flow — Tasks & Time
+# Flow v3
 
-A single-file todo + calendar + study timer PWA, themed in charcoal & dark blue.
+Single-file PWA: tasks + calendar + study timer + AI day plans.
 
-## Deploy (GitHub Pages)
-1. Create a repo, push `index.html`, `manifest.json`, `icon.png`.
-2. Settings → Pages → deploy from main branch.
-3. Open the page in Safari on iPhone → Share → **Add to Home Screen**.
+## Deploy
+Push `index.html`, `manifest.json`, `icon.png` to GitHub Pages. Open in Safari → Add to Home Screen.
+Data lives in localStorage (per device; the home-screen app has its own storage — set up inside it).
 
-Everything (tasks, types, sessions, plans, keys) is stored in your browser's localStorage on the device — nothing disappears on refresh. Note: it's per-device/per-browser, so the home-screen app keeps its own data.
+## Google Calendar (multi-account)
+Settings → paste your OAuth Client ID → "+ Connect a Google account". Repeat for more accounts.
+- First connected account = **Main**: tasks & scanned events write to the calendar you pick (radio).
+- Other accounts are view-only; checkboxes choose which calendars display.
+- Access tokens are cached ~1h and refreshed silently while your Google session lives; if one expires fully, the account shows "Needs sign-in" with a Reconnect button.
 
-## OpenRouter AI (Plan tab + poster scan)
-1. Get a key at openrouter.ai → paste into Settings → AI.
-2. Default model is `anthropic/claude-sonnet-4.5`; the poster scan needs a vision-capable model (the default works).
+## Plan
+Set the day window (start → end) → Generate. Budgets are hard caps. Anything that can't fit shows in an orange feasibility card with a suggestion. Edit blocks manually, revise via AI, or Delete the plan.
 
-## Google Calendar sync
-A static site can't hide credentials, so you use your own free OAuth client:
-1. console.cloud.google.com → New project → enable **Google Calendar API**.
-2. OAuth consent screen → External → add yourself as a test user.
-3. Credentials → Create credentials → **OAuth Client ID** → Web application.
-   - Authorized JavaScript origins: `https://YOURNAME.github.io`
-4. Copy the Client ID into Settings → Google Calendar → Connect.
-5. All your calendars appear: checkboxes control what's *shown*; the radio button picks the **one** calendar this app *writes* to (tasks, scanned events).
+## Gestures
+- Tap a calendar day → day timeline slides up; swipe down (from top) or swipe right to close.
+- Long-press any block/chip in the day view → Edit / Delete.
+- All sheets (new task, settings, import) close with swipe-down.
 
-## How the timer eats budgets
-Running a task's ▶, the stopwatch, or pomodoro are all the same engine. Finish a session → the focused time is logged to that day's study total and subtracted from the task's time budget. When the budget hits zero you're prompted to mark it done. Pomodoro breaks aren't counted.
+## Paste import
+Tasks tab → "Paste a list" → AI splits the text into tasks (dates, times, budgets, types). Without an API key, each line becomes a today-task.
