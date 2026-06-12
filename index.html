@@ -1,0 +1,888 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<title>Flow — Tasks & Time</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Flow">
+<meta name="theme-color" content="#101419">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#101419; --surface:#171D26; --raised:#1E2633; --line:#27303F;
+  --ink:#E8EDF4; --muted:#8E9BB0; --faint:#5B6778;
+  --blue:#4D7FD6; --blue-deep:#27406B; --blue-glow:rgba(77,127,214,.18);
+  --ok:#4FAE85; --warn:#D6904D; --danger:#D65C5C;
+  --display:'Sora',-apple-system,sans-serif;
+  --body:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Hiragino Kaku Gothic ProN','Segoe UI',sans-serif;
+  --sat:env(safe-area-inset-top,0px); --sab:env(safe-area-inset-bottom,0px);
+}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%}
+body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.5;overscroll-behavior-y:none;-webkit-font-smoothing:antialiased}
+button{font-family:inherit;border:none;background:none;color:inherit;cursor:pointer}
+input,select,textarea{font-family:inherit;font-size:15px;color:var(--ink);background:var(--raised);border:1px solid var(--line);border-radius:10px;padding:10px 12px;width:100%;outline:none}
+input:focus,select:focus,textarea:focus{border-color:var(--blue)}
+::placeholder{color:var(--faint)}
+
+/* ---------- shell ---------- */
+#app{max-width:560px;margin:0 auto;min-height:100%;display:flex;flex-direction:column}
+header{padding:calc(var(--sat) + 14px) 18px 10px;display:flex;align-items:baseline;gap:10px;position:sticky;top:0;background:linear-gradient(var(--bg) 75%,transparent);z-index:30}
+header h1{font-family:var(--display);font-weight:800;font-size:22px;letter-spacing:-.02em}
+header h1 span{color:var(--blue)}
+#headDate{color:var(--muted);font-size:13px;flex:1}
+#gearBtn{font-size:18px;color:var(--muted);padding:4px}
+main{flex:1;padding:4px 16px calc(110px + var(--sab))}
+.view{display:none}.view.active{display:block}
+h2.sec{font-family:var(--display);font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.12em;color:var(--muted);margin:18px 2px 8px}
+
+/* ---------- tab bar with notched FAB ---------- */
+#tabbar{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:560px;z-index:40;
+  display:grid;grid-template-columns:1fr 1fr 76px 1fr 1fr;align-items:end;
+  background:rgba(20,26,35,.92);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);
+  border-top:1px solid var(--line);padding:8px 6px calc(8px + var(--sab))}
+.tab{display:flex;flex-direction:column;align-items:center;gap:3px;color:var(--faint);font-size:10.5px;padding:4px 0;font-weight:600}
+.tab svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.tab.active{color:var(--blue)}
+#fab{width:58px;height:58px;border-radius:50%;margin:0 auto;transform:translateY(-16px);
+  background:radial-gradient(circle at 30% 25%,#6395E6,var(--blue) 55%,#2F5AA8);
+  box-shadow:0 6px 22px var(--blue-glow),0 2px 8px rgba(0,0,0,.5);
+  display:flex;align-items:center;justify-content:center;font-size:30px;font-weight:300;color:#fff}
+#fab:active{transform:translateY(-16px) scale(.94)}
+
+/* ---------- segments / chips ---------- */
+.segs{display:flex;gap:6px;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:4px;margin:6px 0 12px}
+.segs button{flex:1;padding:7px 4px;border-radius:9px;font-size:13px;font-weight:600;color:var(--muted)}
+.segs button.on{background:var(--blue-deep);color:var(--ink)}
+.chips{display:flex;flex-wrap:wrap;gap:7px}
+.chip{padding:7px 13px;border-radius:999px;border:1px solid var(--line);background:var(--raised);font-size:13px;font-weight:600;color:var(--muted)}
+.chip.on{border-color:var(--blue);color:var(--ink);background:var(--blue-deep)}
+
+/* ---------- task rows ---------- */
+.task{display:flex;align-items:center;gap:12px;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:12px 14px;margin-bottom:9px}
+.task.done{opacity:.45}
+.task.done .t-title{text-decoration:line-through}
+.t-check{width:24px;height:24px;border-radius:50%;border:2px solid var(--faint);flex:none;display:flex;align-items:center;justify-content:center;font-size:13px;color:transparent}
+.task.done .t-check{background:var(--ok);border-color:var(--ok);color:#fff}
+.t-body{flex:1;min-width:0}
+.t-title{font-weight:600;font-size:15px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.t-meta{display:flex;gap:8px;align-items:center;font-size:12px;color:var(--muted);margin-top:2px;flex-wrap:wrap}
+.t-type{padding:1px 8px;border-radius:999px;font-size:11px;font-weight:700}
+.t-ring{flex:none;width:40px;height:40px;position:relative}
+.t-ring svg{transform:rotate(-90deg)}
+.t-ring .lbl{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:9.5px;font-weight:700;color:var(--muted);font-family:var(--display)}
+.t-play{flex:none;width:34px;height:34px;border-radius:50%;background:var(--blue-deep);color:var(--blue);display:flex;align-items:center;justify-content:center;font-size:13px}
+.t-more{flex:none;color:var(--faint);font-size:18px;padding:2px 4px}
+.empty{color:var(--faint);text-align:center;padding:34px 10px;font-size:14px}
+
+/* ---------- timer ---------- */
+#timerWrap{display:flex;flex-direction:column;align-items:center;padding-top:8px}
+#bigRing{position:relative;width:248px;height:248px;margin:14px 0 6px}
+#bigRing svg{transform:rotate(-90deg)}
+#bigTime{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px}
+#bigTime .digits{font-family:var(--display);font-size:46px;font-weight:700;font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+#bigTime .sub{font-size:12px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.1em}
+#timerTask{width:100%;margin:10px 0}
+.timerBtns{display:flex;gap:12px;margin:14px 0}
+.tbtn{padding:13px 26px;border-radius:14px;font-weight:700;font-size:15px;font-family:var(--display)}
+.tbtn.primary{background:var(--blue);color:#fff}
+.tbtn.ghost{background:var(--raised);border:1px solid var(--line);color:var(--muted)}
+.tbtn.stop{background:var(--danger);color:#fff}
+
+/* ---------- calendar ---------- */
+#calHead{display:flex;align-items:center;justify-content:space-between;margin:6px 0 10px}
+#calHead .m{font-family:var(--display);font-weight:700;font-size:17px}
+#calHead button{color:var(--blue);font-size:20px;padding:4px 12px}
+#calGrid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
+.dow{text-align:center;font-size:10.5px;color:var(--faint);font-weight:700;padding:4px 0}
+.day{aspect-ratio:.82;border-radius:10px;background:var(--surface);border:1px solid transparent;display:flex;flex-direction:column;align-items:center;padding:5px 1px;gap:1px;font-size:13px}
+.day.dim{opacity:.32}
+.day.today{border-color:var(--blue)}
+.day.sel{background:var(--blue-deep);border-color:var(--blue)}
+.day .dots{display:flex;gap:2px;flex-wrap:wrap;justify-content:center;max-width:30px}
+.day .dot{width:4.5px;height:4.5px;border-radius:50%}
+.day .study{font-size:8.5px;color:var(--blue);font-weight:700;font-family:var(--display)}
+#dayDetail{margin-top:14px}
+.ev{display:flex;gap:10px;align-items:flex-start;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin-bottom:8px;font-size:13.5px}
+.ev .bar{width:3.5px;border-radius:3px;align-self:stretch;flex:none}
+.ev .tm{color:var(--muted);font-size:12px}
+
+/* ---------- plan ---------- */
+#planText{white-space:pre-wrap;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:14px;font-size:14px;min-height:120px}
+#planText h{display:block;font-family:var(--display);font-weight:700;color:var(--blue);margin:6px 0 2px}
+.planBtns{display:flex;gap:8px;margin:10px 0;flex-wrap:wrap}
+.pbtn{padding:9px 14px;border-radius:11px;background:var(--raised);border:1px solid var(--line);font-size:13px;font-weight:600;color:var(--ink)}
+.pbtn.blue{background:var(--blue);border-color:var(--blue);color:#fff}
+#planRevise{display:flex;gap:8px;margin-top:10px}
+
+/* ---------- sheets / modal ---------- */
+#dim{position:fixed;inset:0;background:rgba(5,8,12,.6);backdrop-filter:blur(2px);z-index:50;opacity:0;pointer-events:none;transition:opacity .2s}
+#dim.show{opacity:1;pointer-events:auto}
+.sheet{position:fixed;left:50%;transform:translate(-50%,105%);bottom:0;width:100%;max-width:560px;background:var(--surface);
+  border-radius:22px 22px 0 0;border:1px solid var(--line);border-bottom:none;z-index:60;
+  padding:10px 18px calc(20px + var(--sab));transition:transform .26s cubic-bezier(.3,1,.4,1);max-height:88vh;overflow-y:auto}
+.sheet.show{transform:translate(-50%,0)}
+.sheet .grab{width:38px;height:4px;border-radius:4px;background:var(--line);margin:2px auto 12px}
+.sheet h3{font-family:var(--display);font-size:17px;font-weight:700;margin-bottom:12px}
+.frow{margin-bottom:13px}
+.frow label{display:block;font-size:12px;font-weight:700;color:var(--muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:.07em}
+.sheetBtns{display:flex;gap:10px;margin-top:16px}
+.sheetBtns .pbtn{flex:1;padding:13px;text-align:center;font-size:15px}
+.typeRow{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--line)}
+.typeRow .sw{width:18px;height:18px;border-radius:6px;flex:none}
+.typeRow input[type=color]{width:34px;height:30px;padding:0;border:none;background:none}
+.calChk{display:flex;align-items:center;gap:10px;padding:8px 0;font-size:14px;border-bottom:1px solid var(--line)}
+.calChk input{width:auto}
+.small{font-size:12px;color:var(--muted)}
+.linkish{color:var(--blue);font-weight:600}
+#toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(120px + var(--sab));background:var(--raised);border:1px solid var(--line);
+  color:var(--ink);padding:10px 18px;border-radius:12px;font-size:13.5px;z-index:99;opacity:0;transition:opacity .25s;pointer-events:none;max-width:85%;text-align:center}
+#toast.show{opacity:1}
+.spin{display:inline-block;width:14px;height:14px;border:2px solid var(--line);border-top-color:var(--blue);border-radius:50%;animation:sp 1s linear infinite;vertical-align:-2px}
+@keyframes sp{to{transform:rotate(360deg)}}
+@media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<div id="app">
+<header>
+  <h1>Flow<span>.</span></h1>
+  <div id="headDate"></div>
+  <button id="gearBtn" onclick="openSheet('settingsSheet')">⚙︎</button>
+</header>
+<main>
+
+  <!-- TASKS -->
+  <section class="view active" id="view-tasks">
+    <div class="segs" id="taskSegs">
+      <button data-seg="today" class="on">Today</button>
+      <button data-seg="upcoming">Upcoming</button>
+      <button data-seg="bytype">By type</button>
+      <button data-seg="done">Done</button>
+    </div>
+    <div id="taskList"></div>
+  </section>
+
+  <!-- TIMER -->
+  <section class="view" id="view-timer">
+    <div class="segs">
+      <button id="modeStopwatch" class="on" onclick="setTimerMode('stopwatch')">Stopwatch</button>
+      <button id="modePomodoro" onclick="setTimerMode('pomodoro')">Pomodoro</button>
+    </div>
+    <div id="timerWrap">
+      <div id="bigRing">
+        <svg width="248" height="248" viewBox="0 0 248 248">
+          <circle cx="124" cy="124" r="112" stroke="#27303F" stroke-width="10" fill="none"/>
+          <circle id="ringProg" cx="124" cy="124" r="112" stroke="#4D7FD6" stroke-width="10" fill="none"
+            stroke-linecap="round" stroke-dasharray="703.7" stroke-dashoffset="703.7"/>
+        </svg>
+        <div id="bigTime"><div class="digits" id="digits">00:00</div><div class="sub" id="timerSub">Ready</div></div>
+      </div>
+      <select id="timerTask"></select>
+      <div class="small" id="taskBudgetInfo"></div>
+      <div class="timerBtns">
+        <button class="tbtn ghost" id="btnReset" onclick="resetTimer()">Reset</button>
+        <button class="tbtn primary" id="btnStart" onclick="toggleTimer()">Start</button>
+        <button class="tbtn stop" id="btnFinish" onclick="finishSession()" style="display:none">Finish</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- CALENDAR -->
+  <section class="view" id="view-cal">
+    <div id="calHead">
+      <button onclick="moveMonth(-1)">‹</button>
+      <div class="m" id="calMonth"></div>
+      <button onclick="moveMonth(1)">›</button>
+    </div>
+    <div id="calGrid"></div>
+    <div id="dayDetail"></div>
+  </section>
+
+  <!-- PLAN -->
+  <section class="view" id="view-plan">
+    <div class="frow"><label>Plan for</label><input type="date" id="planDate"></div>
+    <div class="planBtns">
+      <button class="pbtn blue" id="genPlanBtn" onclick="generatePlan()">✦ Generate plan</button>
+      <button class="pbtn" onclick="editPlanManually()">Edit manually</button>
+      <button class="pbtn" onclick="document.getElementById('posterInput').click()">📷 Scan poster</button>
+      <input type="file" id="posterInput" accept="image/*" style="display:none" onchange="scanPoster(this)">
+    </div>
+    <div id="planText" class="empty">No plan yet. Generate one from your tasks.</div>
+    <div id="planRevise">
+      <input id="reviseInput" placeholder="Tell AI what to change…">
+      <button class="pbtn blue" onclick="revisePlan()">Revise</button>
+    </div>
+  </section>
+
+</main>
+
+<!-- TAB BAR -->
+<nav id="tabbar">
+  <button class="tab active" data-view="tasks" onclick="switchView('tasks')">
+    <svg viewBox="0 0 24 24"><path d="M9 6h12M9 12h12M9 18h12M4 6l1 1 2-2M4 12l1 1 2-2M4 18l1 1 2-2"/></svg>Tasks</button>
+  <button class="tab" data-view="cal" onclick="switchView('cal')">
+    <svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 9h18M8 3v4M16 3v4"/></svg>Calendar</button>
+  <button id="fab" onclick="openAddSheet()">+</button>
+  <button class="tab" data-view="timer" onclick="switchView('timer')">
+    <svg viewBox="0 0 24 24"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2.5M9 2h6"/></svg>Timer</button>
+  <button class="tab" data-view="plan" onclick="switchView('plan')">
+    <svg viewBox="0 0 24 24"><path d="M12 3l1.7 4.6L18 9l-4.3 1.4L12 15l-1.7-4.6L6 9l4.3-1.4zM19 16l.8 2.2L22 19l-2.2.8L19 22l-.8-2.2L16 19l2.2-.8zM5 16l.6 1.6L7 18l-1.4.6L5 20l-.6-1.4L3 18l1.4-.4z"/></svg>Plan</button>
+</nav>
+
+<!-- ADD/EDIT TASK SHEET -->
+<div id="dim" onclick="closeSheets()"></div>
+<div class="sheet" id="addSheet">
+  <div class="grab"></div>
+  <h3 id="addTitle">New task</h3>
+  <div class="frow"><input id="aTitle" placeholder="What needs doing?"></div>
+  <div class="frow"><label>Type</label>
+    <div class="chips" id="aTypeChips"></div>
+  </div>
+  <div class="frow"><label>When</label>
+    <div class="chips">
+      <button class="chip on" id="whenToday" onclick="setWhen('today')">Today</button>
+      <button class="chip" id="whenDate" onclick="setWhen('date')">Pick date</button>
+      <button class="chip" id="whenSomeday" onclick="setWhen('someday')">Someday</button>
+    </div>
+    <input type="date" id="aDate" style="margin-top:8px;display:none">
+  </div>
+  <div class="frow"><label>Time budget (optional — add later anytime)</label>
+    <div class="chips" id="aEstChips">
+      <button class="chip" data-min="15">15m</button>
+      <button class="chip" data-min="25">25m</button>
+      <button class="chip" data-min="45">45m</button>
+      <button class="chip" data-min="60">1h</button>
+      <button class="chip" data-min="90">1.5h</button>
+      <button class="chip" data-min="custom">Custom</button>
+    </div>
+    <input type="number" id="aEstCustom" placeholder="Minutes" style="margin-top:8px;display:none" min="1">
+  </div>
+  <div class="sheetBtns">
+    <button class="pbtn" id="aDeleteBtn" style="display:none;color:var(--danger)" onclick="deleteEditingTask()">Delete</button>
+    <button class="pbtn blue" onclick="saveTask()">Save task</button>
+  </div>
+</div>
+
+<!-- SETTINGS SHEET -->
+<div class="sheet" id="settingsSheet">
+  <div class="grab"></div>
+  <h3>Settings</h3>
+
+  <h2 class="sec">Task types</h2>
+  <div id="typeManager"></div>
+  <button class="pbtn" style="margin-top:8px" onclick="addType()">+ Add type</button>
+
+  <h2 class="sec">Pomodoro</h2>
+  <div style="display:flex;gap:10px">
+    <div class="frow" style="flex:1"><label>Work (min)</label><input type="number" id="setPomoWork" min="1"></div>
+    <div class="frow" style="flex:1"><label>Break (min)</label><input type="number" id="setPomoBreak" min="1"></div>
+  </div>
+
+  <h2 class="sec">AI — OpenRouter</h2>
+  <div class="frow"><label>API key</label><input id="setOrKey" placeholder="sk-or-…" type="password"></div>
+  <div class="frow"><label>Model</label><input id="setOrModel" placeholder="anthropic/claude-sonnet-4.5"></div>
+
+  <h2 class="sec">Google Calendar</h2>
+  <p class="small" style="margin-bottom:8px">Create a free OAuth Client ID at console.cloud.google.com (Web application, add your GitHub Pages URL as an authorized JavaScript origin, enable the Google Calendar API), then paste it here.</p>
+  <div class="frow"><label>OAuth Client ID</label><input id="setGClient" placeholder="…apps.googleusercontent.com"></div>
+  <button class="pbtn blue" id="gConnectBtn" onclick="googleConnect()">Connect Google Calendar</button>
+  <div id="gCalList" style="margin-top:10px"></div>
+
+  <div class="sheetBtns"><button class="pbtn blue" onclick="saveSettings()">Save settings</button></div>
+</div>
+</div>
+<div id="toast"></div>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<script>
+/* ================= STATE & PERSISTENCE ================= */
+const LS_KEY='flow_state_v1';
+const defaults={
+  tasks:[], sessions:[], events:[], plans:{},
+  types:[{id:'t1',name:'Study',color:'#4D7FD6'},{id:'t2',name:'Research',color:'#4FAE85'},{id:'t3',name:'Personal',color:'#D6904D'}],
+  settings:{pomoWork:25,pomoBreak:5,orKey:'',orModel:'anthropic/claude-sonnet-4.5',gClient:'',writeCal:'',visibleCals:{}},
+  activeTimer:null
+};
+let S=load();
+function load(){
+  try{const raw=localStorage.getItem(LS_KEY); if(raw){const s=JSON.parse(raw); return Object.assign({},defaults,s,{settings:Object.assign({},defaults.settings,s.settings||{})});}}catch(e){}
+  return JSON.parse(JSON.stringify(defaults));
+}
+function save(){ try{localStorage.setItem(LS_KEY,JSON.stringify(S));}catch(e){toast('Could not save — storage unavailable');} }
+const uid=()=>Math.random().toString(36).slice(2,10)+Date.now().toString(36);
+const todayStr=()=>{const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');};
+const fmtMin=m=>m>=60?(Math.floor(m/60)+'h'+(m%60?String(m%60)+'m':'')):m+'m';
+const fmtClock=s=>{s=Math.max(0,Math.round(s));const h=Math.floor(s/3600),m=Math.floor(s%3600/60),sec=s%60;return h>0?`${h}:${String(m).padStart(2,'0')}:${String(sec).padStart(2,'0')}`:`${String(m).padStart(2,'0')}:${String(sec).padStart(2,'0')}`;};
+const esc=t=>String(t??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const typeOf=id=>S.types.find(t=>t.id===id);
+function toast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');clearTimeout(t._h);t._h=setTimeout(()=>t.classList.remove('show'),2600);}
+
+/* ================= VIEWS / SHEETS ================= */
+function switchView(v){
+  document.querySelectorAll('.view').forEach(x=>x.classList.remove('active'));
+  document.getElementById('view-'+v).classList.add('active');
+  document.querySelectorAll('#tabbar .tab').forEach(x=>x.classList.toggle('active',x.dataset.view===v));
+  if(v==='tasks')renderTasks(); if(v==='cal')renderCal(); if(v==='timer')renderTimerView(); if(v==='plan')renderPlan();
+}
+function openSheet(id){document.getElementById('dim').classList.add('show');document.getElementById(id).classList.add('show');if(id==='settingsSheet')renderSettings();}
+function closeSheets(){document.getElementById('dim').classList.remove('show');document.querySelectorAll('.sheet').forEach(s=>s.classList.remove('show'));}
+
+/* ================= TASKS ================= */
+let seg='today', editingId=null, addWhen='today', addEst=null;
+
+document.getElementById('taskSegs').addEventListener('click',e=>{
+  const b=e.target.closest('button'); if(!b)return;
+  seg=b.dataset.seg;
+  document.querySelectorAll('#taskSegs button').forEach(x=>x.classList.toggle('on',x===b));
+  renderTasks();
+});
+
+function taskRemaining(t){ if(!t.estimateMin)return null; return t.estimateMin*60-(t.spentSec||0); }
+
+function ringSVG(t){
+  if(!t.estimateMin) return '';
+  const frac=Math.min(1,(t.spentSec||0)/(t.estimateMin*60));
+  const C=2*Math.PI*16, off=C*(1-frac);
+  const col=frac>=1?'#D6904D':'#4D7FD6';
+  const rem=Math.max(0,Math.ceil((t.estimateMin*60-(t.spentSec||0))/60));
+  return `<div class="t-ring"><svg width="40" height="40" viewBox="0 0 40 40">
+    <circle cx="20" cy="20" r="16" stroke="#27303F" stroke-width="3.5" fill="none"/>
+    <circle cx="20" cy="20" r="16" stroke="${col}" stroke-width="3.5" fill="none" stroke-linecap="round"
+      stroke-dasharray="${C.toFixed(1)}" stroke-dashoffset="${off.toFixed(1)}"/></svg>
+    <div class="lbl">${rem}m</div></div>`;
+}
+
+function taskRow(t){
+  const ty=typeOf(t.typeId);
+  const dateLbl=t.date?(t.date===todayStr()?'Today':t.date.slice(5).replace('-','/')) : 'Someday';
+  const spent=t.spentSec?`· ${fmtMin(Math.round(t.spentSec/60))} spent`:'';
+  return `<div class="task ${t.done?'done':''}" data-id="${t.id}">
+    <button class="t-check" onclick="toggleDone('${t.id}')">✓</button>
+    <div class="t-body" onclick="openEditSheet('${t.id}')">
+      <div class="t-title">${esc(t.title)}</div>
+      <div class="t-meta">
+        ${ty?`<span class="t-type" style="background:${ty.color}22;color:${ty.color}">${esc(ty.name)}</span>`:''}
+        <span>${dateLbl}</span>
+        ${t.estimateMin?`<span>· ${fmtMin(t.estimateMin)} budget</span>`:`<span class="linkish" onclick="event.stopPropagation();openEditSheet('${t.id}')">+ add time</span>`}
+        <span>${spent}</span>
+      </div>
+    </div>
+    ${ringSVG(t)}
+    ${!t.done?`<button class="t-play" onclick="startTaskTimer('${t.id}')">▶</button>`:''}
+  </div>`;
+}
+
+function renderTasks(){
+  const el=document.getElementById('taskList'); const td=todayStr();
+  let html='';
+  const open=S.tasks.filter(t=>!t.done);
+  if(seg==='today'){
+    const list=open.filter(t=>t.date&&t.date<=td);
+    const overdue=list.filter(t=>t.date<td), today=list.filter(t=>t.date===td);
+    if(overdue.length) html+=`<h2 class="sec" style="color:var(--warn)">Overdue</h2>`+overdue.map(taskRow).join('');
+    html+=`<h2 class="sec">Today</h2>`+(today.length?today.map(taskRow).join(''):`<div class="empty">Nothing for today. Tap + to add.</div>`);
+    const someday=open.filter(t=>!t.date);
+    if(someday.length) html+=`<h2 class="sec">Someday</h2>`+someday.map(taskRow).join('');
+  }else if(seg==='upcoming'){
+    const list=open.filter(t=>t.date&&t.date>td).sort((a,b)=>a.date.localeCompare(b.date));
+    html=list.length?list.map(taskRow).join(''):`<div class="empty">No upcoming tasks.</div>`;
+  }else if(seg==='bytype'){
+    for(const ty of S.types){
+      const list=open.filter(t=>t.typeId===ty.id);
+      html+=`<h2 class="sec" style="color:${ty.color}">${esc(ty.name)} — ${list.length} left</h2>`;
+      html+=list.length?list.map(taskRow).join(''):`<div class="empty" style="padding:10px">All clear ✓</div>`;
+    }
+    const untyped=open.filter(t=>!typeOf(t.typeId));
+    if(untyped.length) html+=`<h2 class="sec">No type — ${untyped.length} left</h2>`+untyped.map(taskRow).join('');
+  }else{ // done
+    const list=S.tasks.filter(t=>t.done).sort((a,b)=>(b.doneAt||0)-(a.doneAt||0));
+    html=list.length?list.map(taskRow).join(''):`<div class="empty">Nothing done yet.</div>`;
+  }
+  el.innerHTML=html;
+}
+
+function toggleDone(id){
+  const t=S.tasks.find(x=>x.id===id); if(!t)return;
+  t.done=!t.done; t.doneAt=t.done?Date.now():null;
+  save(); renderTasks(); gcalSyncTask(t);
+}
+
+/* ----- add / edit sheet ----- */
+function setWhen(w){
+  addWhen=w;
+  ['Today','Date','Someday'].forEach(k=>document.getElementById('when'+k).classList.toggle('on',k.toLowerCase()===w));
+  document.getElementById('aDate').style.display=w==='date'?'block':'none';
+}
+document.getElementById('aEstChips').addEventListener('click',e=>{
+  const b=e.target.closest('.chip'); if(!b)return;
+  const was=b.classList.contains('on');
+  document.querySelectorAll('#aEstChips .chip').forEach(x=>x.classList.remove('on'));
+  document.getElementById('aEstCustom').style.display='none';
+  if(was){addEst=null;return;}
+  b.classList.add('on');
+  if(b.dataset.min==='custom'){addEst='custom';document.getElementById('aEstCustom').style.display='block';}
+  else addEst=parseInt(b.dataset.min);
+});
+function renderTypeChips(selId){
+  document.getElementById('aTypeChips').innerHTML=S.types.map(t=>
+    `<button class="chip ${t.id===selId?'on':''}" data-tid="${t.id}" style="${t.id===selId?`border-color:${t.color};`:''}" onclick="selType('${t.id}')">${esc(t.name)}</button>`).join('')+
+    `<button class="chip" onclick="quickNewType()">+ New</button>`;
+}
+let selTypeId=null;
+function selType(id){selTypeId=selTypeId===id?null:id;renderTypeChips(selTypeId);}
+function quickNewType(){const n=prompt('Type name:');if(!n)return;const t={id:uid(),name:n.trim(),color:'#'+['4D7FD6','4FAE85','D6904D','B05CD6','D65C8E','5CC7D6'][S.types.length%6]};S.types.push(t);save();selTypeId=t.id;renderTypeChips(selTypeId);}
+
+function openAddSheet(){
+  editingId=null; selTypeId=S.types[0]?.id||null; addWhen='today'; addEst=null;
+  document.getElementById('addTitle').textContent='New task';
+  document.getElementById('aTitle').value=''; document.getElementById('aDate').value=todayStr();
+  document.getElementById('aEstCustom').value=''; document.getElementById('aDeleteBtn').style.display='none';
+  document.querySelectorAll('#aEstChips .chip').forEach(x=>x.classList.remove('on'));
+  document.getElementById('aEstCustom').style.display='none';
+  setWhen('today'); renderTypeChips(selTypeId); openSheet('addSheet');
+  setTimeout(()=>document.getElementById('aTitle').focus(),300);
+}
+function openEditSheet(id){
+  const t=S.tasks.find(x=>x.id===id); if(!t)return;
+  editingId=id; selTypeId=t.typeId; addEst=t.estimateMin||null;
+  document.getElementById('addTitle').textContent='Edit task';
+  document.getElementById('aTitle').value=t.title;
+  document.getElementById('aDeleteBtn').style.display='block';
+  if(!t.date)setWhen('someday'); else if(t.date===todayStr())setWhen('today'); else {setWhen('date');}
+  document.getElementById('aDate').value=t.date||todayStr();
+  document.querySelectorAll('#aEstChips .chip').forEach(x=>{x.classList.toggle('on',parseInt(x.dataset.min)===t.estimateMin);});
+  const std=[15,25,45,60,90];
+  if(t.estimateMin&&!std.includes(t.estimateMin)){
+    document.querySelector('#aEstChips [data-min=custom]').classList.add('on');
+    document.getElementById('aEstCustom').style.display='block';
+    document.getElementById('aEstCustom').value=t.estimateMin; addEst='custom';
+  }else document.getElementById('aEstCustom').style.display='none';
+  renderTypeChips(selTypeId); openSheet('addSheet');
+}
+function saveTask(){
+  const title=document.getElementById('aTitle').value.trim();
+  if(!title){toast('Give the task a name');return;}
+  let est=addEst==='custom'?parseInt(document.getElementById('aEstCustom').value)||null:addEst;
+  let date=addWhen==='today'?todayStr():addWhen==='date'?(document.getElementById('aDate').value||todayStr()):null;
+  let t;
+  if(editingId){ t=S.tasks.find(x=>x.id===editingId); Object.assign(t,{title,typeId:selTypeId,date,estimateMin:est}); }
+  else { t={id:uid(),title,typeId:selTypeId,date,estimateMin:est,spentSec:0,done:false,createdAt:Date.now()}; S.tasks.push(t); }
+  save(); closeSheets(); renderTasks(); renderCal(); gcalSyncTask(t);
+  toast(editingId?'Task updated':'Task added');
+}
+function deleteEditingTask(){
+  const i=S.tasks.findIndex(x=>x.id===editingId); if(i<0)return;
+  const t=S.tasks[i]; S.tasks.splice(i,1); save(); closeSheets(); renderTasks(); renderCal();
+  if(t.gcalEventId) gcalDeleteEvent(t);
+  toast('Task deleted');
+}
+
+/* ================= TIMER ENGINE =================
+   One engine for everything. activeTimer = {mode, taskId, startTs, accumSec, running, pomoPhase, pomoCount}
+   Work time eats the assigned task's budget. Pomodoro breaks are not logged. */
+let tick=null;
+function AT(){return S.activeTimer;}
+function elapsedSec(){const a=AT();if(!a)return 0;return a.accumSec+(a.running?(Date.now()-a.startTs)/1000:0);}
+
+function setTimerMode(m){
+  const a=AT();
+  if(a&&a.running){toast('Finish the current session first');return;}
+  if(a)S.activeTimer=null;
+  document.getElementById('modeStopwatch').classList.toggle('on',m==='stopwatch');
+  document.getElementById('modePomodoro').classList.toggle('on',m==='pomodoro');
+  timerMode=m; save(); renderTimerView();
+}
+let timerMode='stopwatch';
+
+function startTaskTimer(taskId){
+  const a=AT();
+  if(a&&a.running&&a.taskId!==taskId){toast('Another session is running — finish it first');switchView('timer');return;}
+  if(!a||a.taskId!==taskId) S.activeTimer={mode:timerMode,taskId,startTs:Date.now(),accumSec:0,running:true,pomoPhase:'work',pomoCount:1};
+  else if(!a.running){a.running=true;a.startTs=Date.now();}
+  save(); switchView('timer');
+}
+
+function toggleTimer(){
+  let a=AT();
+  if(!a){
+    const taskId=document.getElementById('timerTask').value||null;
+    S.activeTimer={mode:timerMode,taskId,startTs:Date.now(),accumSec:0,running:true,pomoPhase:'work',pomoCount:1};
+  }else if(a.running){ a.accumSec=elapsedSec(); a.running=false; }
+  else { a.startTs=Date.now(); a.running=true; }
+  save(); renderTimerView();
+}
+function resetTimer(){
+  const a=AT(); if(!a)return;
+  if(elapsedSec()>30&&!confirm('Discard this session without logging it?'))return;
+  S.activeTimer=null; save(); renderTimerView();
+}
+function finishSession(){
+  const a=AT(); if(!a)return;
+  let workSec;
+  if(a.mode==='pomodoro'){
+    const w=S.settings.pomoWork*60, b=S.settings.pomoBreak*60, cyc=w+b, e=elapsedSec();
+    const full=Math.floor(e/cyc); const rem=e-full*cyc;
+    workSec=full*w+Math.min(rem,w);
+  }else workSec=elapsedSec();
+  workSec=Math.round(workSec);
+  if(workSec>=10){
+    S.sessions.push({id:uid(),taskId:a.taskId||null,date:todayStr(),durSec:workSec,mode:a.mode,ts:Date.now()});
+    if(a.taskId){const t=S.tasks.find(x=>x.id===a.taskId);if(t)t.spentSec=(t.spentSec||0)+workSec;}
+    toast(`Logged ${fmtMin(Math.max(1,Math.round(workSec/60)))} of focus`);
+  }
+  const t=a.taskId?S.tasks.find(x=>x.id===a.taskId):null;
+  S.activeTimer=null; save(); renderTimerView(); 
+  if(t&&t.estimateMin&&taskRemaining(t)<=0&&!t.done){
+    if(confirm(`Time budget for “${t.title}” is used up. Mark it done?`)){t.done=true;t.doneAt=Date.now();save();gcalSyncTask(t);}
+  }
+  renderTasks(); renderCal();
+}
+
+function pomoPhaseAt(e){ // derive phase from elapsed
+  const w=S.settings.pomoWork*60,b=S.settings.pomoBreak*60,cyc=w+b;
+  const into=e%cyc; const n=Math.floor(e/cyc)+1;
+  return into<w?{phase:'work',left:w-into,n}:{phase:'break',left:cyc-into,n};
+}
+
+function renderTimerView(){
+  const a=AT();
+  const digits=document.getElementById('digits'),sub=document.getElementById('timerSub'),
+        ring=document.getElementById('ringProg'),start=document.getElementById('btnStart'),
+        fin=document.getElementById('btnFinish'),selWrap=document.getElementById('timerTask'),
+        info=document.getElementById('taskBudgetInfo');
+  // task selector
+  const open=S.tasks.filter(t=>!t.done);
+  selWrap.innerHTML=`<option value="">No task — just track time</option>`+open.map(t=>`<option value="${t.id}" ${a&&a.taskId===t.id?'selected':''}>${esc(t.title)}${t.estimateMin?` (${fmtMin(t.estimateMin)})`:''}</option>`).join('');
+  selWrap.disabled=!!a;
+  if(a){document.getElementById('modeStopwatch').classList.toggle('on',a.mode==='stopwatch');document.getElementById('modePomodoro').classList.toggle('on',a.mode==='pomodoro');}
+  const e=a?elapsedSec():0;
+  const C=703.7;
+  const task=a&&a.taskId?S.tasks.find(x=>x.id===a.taskId):null;
+  if(!a){
+    digits.textContent=timerMode==='pomodoro'?fmtClock(S.settings.pomoWork*60):'00:00';
+    sub.textContent='Ready'; ring.style.strokeDashoffset=C; ring.setAttribute('stroke','#4D7FD6');
+    start.textContent='Start'; fin.style.display='none'; info.textContent='';
+  }else{
+    if(a.mode==='pomodoro'){
+      const p=pomoPhaseAt(e);
+      digits.textContent=fmtClock(p.left);
+      sub.textContent=(p.phase==='work'?'Focus':'Break')+` · round ${p.n}`;
+      const total=p.phase==='work'?S.settings.pomoWork*60:S.settings.pomoBreak*60;
+      ring.style.strokeDashoffset=C*(p.left/total);
+      ring.setAttribute('stroke',p.phase==='work'?'#4D7FD6':'#4FAE85');
+      if(p.left<1&&a.running&&!a._buzzed){a._buzzed=p.n+p.phase;tryBuzz();}
+    }else if(task&&task.estimateMin){
+      const remain=task.estimateMin*60-(task.spentSec||0)-e;
+      digits.textContent=fmtClock(remain);
+      sub.textContent=remain>0?'Remaining on budget':'Budget used up';
+      ring.style.strokeDashoffset=C*Math.max(0,remain/(task.estimateMin*60));
+      ring.setAttribute('stroke',remain>0?'#4D7FD6':'#D6904D');
+      if(remain<=0&&a.running&&!a._warned){a._warned=true;tryBuzz();toast(`Time's up on “${task.title}” — finish to mark it done`);}
+    }else{
+      digits.textContent=fmtClock(e); sub.textContent=a.running?'Tracking':'Paused';
+      ring.style.strokeDashoffset=C*(1-((e%3600)/3600));
+    }
+    start.textContent=a.running?'Pause':'Resume';
+    fin.style.display='inline-block';
+    info.textContent=task?(task.estimateMin?`${task.title} — ${fmtMin(task.estimateMin)} budget, ${fmtMin(Math.round((task.spentSec||0)/60))} already spent`:`${task.title} — no budget set`):'';
+  }
+  if(!tick) tick=setInterval(()=>{if(AT())renderTimerView();},500);
+}
+function tryBuzz(){ if(navigator.vibrate)navigator.vibrate([200,100,200]); try{const c=new (window.AudioContext||window.webkitAudioContext)();const o=c.createOscillator();const g=c.createGain();o.connect(g);g.connect(c.destination);o.frequency.value=880;g.gain.value=.08;o.start();setTimeout(()=>{o.stop();c.close();},350);}catch(e){} }
+
+/* daily study seconds */
+function studySecOn(date){return S.sessions.filter(s=>s.date===date).reduce((a,s)=>a+s.durSec,0);}
+
+/* ================= CALENDAR ================= */
+let calCursor=new Date(); calCursor.setDate(1);
+let selDate=todayStr();
+function moveMonth(d){calCursor.setMonth(calCursor.getMonth()+d);renderCal();fetchGEventsForMonth();}
+function dateStr(y,m,d){return y+'-'+String(m+1).padStart(2,'0')+'-'+String(d).padStart(2,'0');}
+
+function renderCal(){
+  const y=calCursor.getFullYear(),m=calCursor.getMonth();
+  document.getElementById('calMonth').textContent=calCursor.toLocaleString('en',{month:'long',year:'numeric'});
+  const first=new Date(y,m,1).getDay(), days=new Date(y,m+1,0).getDate(), prevDays=new Date(y,m,0).getDate();
+  let html=['S','M','T','W','T','F','S'].map(d=>`<div class="dow">${d}</div>`).join('');
+  const cells=[];
+  for(let i=first-1;i>=0;i--)cells.push({d:prevDays-i,dim:true});
+  for(let d=1;d<=days;d++)cells.push({d,dim:false});
+  while(cells.length%7)cells.push({d:cells.length%7,dim:true,next:true});
+  let nd=1;
+  html+=cells.map(c=>{
+    if(c.dim)return `<div class="day dim"><span>${c.next?nd++:c.d}</span></div>`;
+    const ds=dateStr(y,m,c.d);
+    const dayTasks=S.tasks.filter(t=>t.date===ds&&!t.done);
+    const dots=dayTasks.slice(0,4).map(t=>{const ty=typeOf(t.typeId);return `<span class="dot" style="background:${ty?ty.color:'#8E9BB0'}"></span>`;}).join('');
+    const gd=(gEvents[ds]||[]).length?`<span class="dot" style="background:#fff;opacity:.6"></span>`:'';
+    const st=studySecOn(ds);
+    return `<div class="day ${ds===todayStr()?'today':''} ${ds===selDate?'sel':''}" onclick="selectDay('${ds}')">
+      <span>${c.d}</span><div class="dots">${dots}${gd}</div>${st?`<span class="study">${fmtMin(Math.round(st/60))}</span>`:''}</div>`;
+  }).join('');
+  document.getElementById('calGrid').innerHTML=html;
+  renderDayDetail();
+}
+function selectDay(ds){selDate=ds;renderCal();}
+function renderDayDetail(){
+  const el=document.getElementById('dayDetail'); const ds=selDate;
+  const st=studySecOn(ds);
+  const dayTasks=S.tasks.filter(t=>t.date===ds);
+  const locEvents=S.events.filter(e=>e.date===ds);
+  const gevs=gEvents[ds]||[];
+  let html=`<h2 class="sec">${ds===todayStr()?'Today':ds}${st?` · ${fmtMin(Math.round(st/60))} studied`:''}</h2>`;
+  if(!dayTasks.length&&!gevs.length&&!locEvents.length) html+=`<div class="empty">Nothing on this day.</div>`;
+  html+=dayTasks.map(taskRow).join('');
+  html+=[...locEvents.map(e=>({sum:e.title,time:e.startTime?e.startTime+(e.endTime?'–'+e.endTime:''):'All day',loc:e.location,col:'#B05CD6'})),
+         ...gevs.map(e=>({sum:e.summary||'(untitled)',time:e.time,loc:e.location,col:e.col}))]
+    .map(e=>`<div class="ev"><div class="bar" style="background:${e.col}"></div>
+      <div><div style="font-weight:600">${esc(e.sum)}</div><div class="tm">${esc(e.time||'')}${e.loc?' · '+esc(e.loc):''}</div></div></div>`).join('');
+  el.innerHTML=html;
+}
+
+/* ================= GOOGLE CALENDAR ================= */
+let gToken=null,gTokenExp=0,gTokenClient=null,gCals=[],gEvents={}; // gEvents['YYYY-MM-DD']=[{summary,time,col,location}]
+const GCOLORS=['#4D7FD6','#4FAE85','#D6904D','#D65C8E','#5CC7D6','#B05CD6'];
+
+function googleReady(){return typeof google!=='undefined'&&google.accounts;}
+function googleConnect(){
+  const cid=document.getElementById('setGClient').value.trim()||S.settings.gClient;
+  if(!cid){toast('Paste your OAuth Client ID first');return;}
+  if(!googleReady()){toast('Google library not loaded — check connection');return;}
+  S.settings.gClient=cid;save();
+  gTokenClient=google.accounts.oauth2.initTokenClient({
+    client_id:cid, scope:'https://www.googleapis.com/auth/calendar',
+    callback:async r=>{
+      if(r.error){toast('Google auth failed: '+r.error);return;}
+      gToken=r.access_token;gTokenExp=Date.now()+(r.expires_in-60)*1000;
+      toast('Google connected');
+      await loadGCalList(); renderSettings(); fetchGEventsForMonth();
+    }
+  });
+  gTokenClient.requestAccessToken();
+}
+async function ensureToken(){
+  if(gToken&&Date.now()<gTokenExp)return gToken;
+  if(!S.settings.gClient)return null;
+  if(!googleReady())return null;
+  return new Promise(res=>{
+    gTokenClient=google.accounts.oauth2.initTokenClient({
+      client_id:S.settings.gClient,scope:'https://www.googleapis.com/auth/calendar',
+      callback:r=>{if(r.error){res(null);return;}gToken=r.access_token;gTokenExp=Date.now()+(r.expires_in-60)*1000;res(gToken);}
+    });
+    gTokenClient.requestAccessToken({prompt:''});
+  });
+}
+async function gFetch(path,opts={}){
+  const tok=await ensureToken(); if(!tok)throw new Error('Not connected to Google');
+  const r=await fetch('https://www.googleapis.com/calendar/v3'+path,Object.assign({},opts,{
+    headers:Object.assign({'Authorization':'Bearer '+tok,'Content-Type':'application/json'},opts.headers||{})
+  }));
+  if(!r.ok)throw new Error('Google API '+r.status);
+  return r.status===204?null:r.json();
+}
+async function loadGCalList(){
+  try{
+    const d=await gFetch('/users/me/calendarList');
+    gCals=d.items||[];
+    // default: all visible, write target = primary
+    gCals.forEach(c=>{if(!(c.id in S.settings.visibleCals))S.settings.visibleCals[c.id]=true;});
+    if(!S.settings.writeCal){const p=gCals.find(c=>c.primary);if(p)S.settings.writeCal=p.id;}
+    save();
+  }catch(e){toast(e.message);}
+}
+async function fetchGEventsForMonth(){
+  if(!S.settings.gClient||!gCals.length)return;
+  const y=calCursor.getFullYear(),m=calCursor.getMonth();
+  const tMin=new Date(y,m,1).toISOString(), tMax=new Date(y,m+1,1).toISOString();
+  gEvents={};
+  const visible=gCals.filter(c=>S.settings.visibleCals[c.id]);
+  await Promise.all(visible.map(async(c,i)=>{
+    try{
+      const d=await gFetch(`/calendars/${encodeURIComponent(c.id)}/events?timeMin=${tMin}&timeMax=${tMax}&singleEvents=true&orderBy=startTime&maxResults=250`);
+      (d.items||[]).forEach(ev=>{
+        const s=ev.start||{}; const ds=(s.date||s.dateTime||'').slice(0,10); if(!ds)return;
+        const time=s.dateTime?new Date(s.dateTime).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}):'All day';
+        (gEvents[ds]=gEvents[ds]||[]).push({summary:ev.summary,time,location:ev.location,col:c.backgroundColor||GCOLORS[i%GCOLORS.length],_tf:ev.description==='flow-task'});
+      });
+    }catch(e){}
+  }));
+  renderCal();
+}
+async function gcalSyncTask(t){
+  // push dated task to the chosen write calendar (create / update / remove when undated)
+  if(!S.settings.gClient||!S.settings.writeCal)return;
+  try{
+    if(!t.date){ if(t.gcalEventId)await gcalDeleteEvent(t); return; }
+    const body={summary:(t.done?'✓ ':'')+t.title,description:'flow-task',start:{date:t.date},end:{date:t.date}};
+    if(t.gcalEventId){
+      await gFetch(`/calendars/${encodeURIComponent(S.settings.writeCal)}/events/${t.gcalEventId}`,{method:'PATCH',body:JSON.stringify(body)});
+    }else{
+      const ev=await gFetch(`/calendars/${encodeURIComponent(S.settings.writeCal)}/events`,{method:'POST',body:JSON.stringify(body)});
+      t.gcalEventId=ev.id;save();
+    }
+    fetchGEventsForMonth();
+  }catch(e){/* silent — offline or not connected */}
+}
+async function gcalDeleteEvent(t){
+  try{await gFetch(`/calendars/${encodeURIComponent(S.settings.writeCal)}/events/${t.gcalEventId}`,{method:'DELETE'});t.gcalEventId=null;save();fetchGEventsForMonth();}catch(e){}
+}
+async function gcalAddEvent(ev){ // from AI poster scan
+  if(!S.settings.gClient||!S.settings.writeCal)return false;
+  try{
+    const body={summary:ev.title,location:ev.location||undefined,
+      start:ev.startTime?{dateTime:`${ev.date}T${ev.startTime}:00`,timeZone:Intl.DateTimeFormat().resolvedOptions().timeZone}:{date:ev.date},
+      end:ev.endTime?{dateTime:`${ev.date}T${ev.endTime}:00`,timeZone:Intl.DateTimeFormat().resolvedOptions().timeZone}:(ev.startTime?{dateTime:`${ev.date}T${ev.startTime}:00`,timeZone:Intl.DateTimeFormat().resolvedOptions().timeZone}:{date:ev.date})};
+    await gFetch(`/calendars/${encodeURIComponent(S.settings.writeCal)}/events`,{method:'POST',body:JSON.stringify(body)});
+    return true;
+  }catch(e){return false;}
+}
+
+/* ================= SETTINGS ================= */
+function renderSettings(){
+  document.getElementById('setPomoWork').value=S.settings.pomoWork;
+  document.getElementById('setPomoBreak').value=S.settings.pomoBreak;
+  document.getElementById('setOrKey').value=S.settings.orKey;
+  document.getElementById('setOrModel').value=S.settings.orModel;
+  document.getElementById('setGClient').value=S.settings.gClient;
+  document.getElementById('typeManager').innerHTML=S.types.map(t=>`
+    <div class="typeRow">
+      <input type="color" value="${t.color}" onchange="updType('${t.id}','color',this.value)">
+      <input value="${esc(t.name)}" onchange="updType('${t.id}','name',this.value)" style="flex:1">
+      <button style="color:var(--danger);font-size:13px" onclick="delType('${t.id}')">Delete</button>
+    </div>`).join('');
+  document.getElementById('gCalList').innerHTML=gCals.length?
+    `<h2 class="sec">Show calendars</h2>`+gCals.map(c=>`
+      <label class="calChk"><input type="checkbox" ${S.settings.visibleCals[c.id]?'checked':''} onchange="toggleCal('${esc(c.id)}',this.checked)">
+        <span style="flex:1">${esc(c.summary)}</span>
+        <input type="radio" name="writeCal" ${S.settings.writeCal===c.id?'checked':''} onchange="setWriteCal('${esc(c.id)}')" title="Write target">
+      </label>`).join('')+`<p class="small" style="margin-top:6px">Checkbox = show in calendar. Radio = where this app's tasks/events are saved.</p>`
+    :(S.settings.gClient?`<p class="small">Tap Connect to load your calendars.</p>`:'');
+}
+function updType(id,k,v){const t=typeOf(id);if(t){t[k]=k==='name'?v.trim():v;save();renderTasks();}}
+function delType(id){if(!confirm('Delete this type? Tasks keep existing without a type.'))return;S.types=S.types.filter(t=>t.id!==id);save();renderSettings();renderTasks();}
+function addType(){S.types.push({id:uid(),name:'New type',color:'#5CC7D6'});save();renderSettings();}
+function toggleCal(id,on){S.settings.visibleCals[id]=on;save();fetchGEventsForMonth();}
+function setWriteCal(id){S.settings.writeCal=id;save();toast('Write calendar set');}
+function saveSettings(){
+  S.settings.pomoWork=parseInt(document.getElementById('setPomoWork').value)||25;
+  S.settings.pomoBreak=parseInt(document.getElementById('setPomoBreak').value)||5;
+  S.settings.orKey=document.getElementById('setOrKey').value.trim();
+  S.settings.orModel=document.getElementById('setOrModel').value.trim()||'anthropic/claude-sonnet-4.5';
+  S.settings.gClient=document.getElementById('setGClient').value.trim();
+  save();closeSheets();toast('Settings saved');
+}
+
+/* ================= AI (OpenRouter) ================= */
+async function orChat(messages,maxTokens=1200){
+  if(!S.settings.orKey)throw new Error('Add your OpenRouter API key in Settings first');
+  const r=await fetch('https://openrouter.ai/api/v1/chat/completions',{
+    method:'POST',
+    headers:{'Authorization':'Bearer '+S.settings.orKey,'Content-Type':'application/json'},
+    body:JSON.stringify({model:S.settings.orModel,max_tokens:maxTokens,messages})
+  });
+  if(!r.ok){const e=await r.text();throw new Error('OpenRouter '+r.status+': '+e.slice(0,120));}
+  const d=await r.json();
+  return d.choices?.[0]?.message?.content||'';
+}
+function planContext(date){
+  const open=S.tasks.filter(t=>!t.done&&(t.date===date||t.date<date||!t.date));
+  const lines=open.map(t=>{
+    const ty=typeOf(t.typeId);const rem=t.estimateMin?Math.max(0,Math.round((t.estimateMin*60-(t.spentSec||0))/60)):null;
+    return `- ${t.title}${ty?` [${ty.name}]`:''}${t.date&&t.date<date?' (overdue, due '+t.date+')':t.date?'':' (someday)'}${rem!=null?` — ~${rem}min remaining of ${t.estimateMin}min budget`:''}`;
+  }).join('\n');
+  const gevs=(gEvents[date]||[]).filter(e=>!e._tf).map(e=>`- ${e.time}: ${e.summary}`).join('\n');
+  const now=new Date();
+  return `Date: ${date}${date===todayStr()?` (today, current time ${now.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})})`:''}
+Open tasks:
+${lines||'(none)'}
+${gevs?`Fixed calendar events:\n${gevs}`:''}`;
+}
+async function generatePlan(){
+  const date=document.getElementById('planDate').value||todayStr();
+  const btn=document.getElementById('genPlanBtn');btn.innerHTML='<span class="spin"></span> Thinking…';btn.disabled=true;
+  try{
+    const out=await orChat([
+      {role:'system',content:'You are a pragmatic day planner for a busy CS student. Produce a realistic, time-blocked plan for the given day using the open tasks and fixed events. Respect time budgets, schedule around fixed events, include short breaks and a meal. Output plain text: time ranges followed by activity, one per line, optionally grouped with short section headers. Be concise. No markdown symbols like ** or #.'},
+      {role:'user',content:planContext(date)}
+    ]);
+    S.plans[date]=out.trim();save();renderPlan();toast('Plan generated');
+  }catch(e){toast(e.message);}
+  btn.innerHTML='✦ Generate plan';btn.disabled=false;
+}
+async function revisePlan(){
+  const date=document.getElementById('planDate').value||todayStr();
+  const inst=document.getElementById('reviseInput').value.trim();
+  if(!inst){toast('Describe what to change');return;}
+  if(!S.plans[date]){toast('Generate a plan first');return;}
+  toast('Revising…');
+  try{
+    const out=await orChat([
+      {role:'system',content:'Revise the day plan according to the instruction. Keep the same plain-text time-blocked format. Output only the revised plan.'},
+      {role:'user',content:`Current plan:\n${S.plans[date]}\n\nTask context:\n${planContext(date)}\n\nInstruction: ${inst}`}
+    ]);
+    S.plans[date]=out.trim();save();renderPlan();
+    document.getElementById('reviseInput').value='';toast('Plan revised');
+  }catch(e){toast(e.message);}
+}
+function editPlanManually(){
+  const date=document.getElementById('planDate').value||todayStr();
+  const el=document.getElementById('planText');
+  if(el.querySelector('textarea')){ // save
+    S.plans[date]=el.querySelector('textarea').value;save();renderPlan();return;
+  }
+  el.classList.remove('empty');
+  el.innerHTML=`<textarea style="min-height:240px;border:none;background:none;padding:0">${esc(S.plans[date]||'')}</textarea>
+    <button class="pbtn blue" style="margin-top:8px" onclick="editPlanManually()">Save plan</button>`;
+}
+function renderPlan(){
+  const dEl=document.getElementById('planDate');
+  if(!dEl.value)dEl.value=todayStr();
+  const p=S.plans[dEl.value];
+  const el=document.getElementById('planText');
+  if(p){el.classList.remove('empty');el.textContent=p;}
+  else{el.classList.add('empty');el.textContent='No plan yet. Generate one from your tasks.';}
+}
+document.getElementById('planDate')?.addEventListener('change',renderPlan);
+
+async function scanPoster(input){
+  const file=input.files[0];if(!file)return;input.value='';
+  toast('Reading poster…');
+  try{
+    const b64=await new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result);r.onerror=rej;r.readAsDataURL(file);});
+    const out=await orChat([
+      {role:'system',content:`Extract the event from this image. Today is ${todayStr()}. Respond with ONLY a JSON object, no markdown fences: {"title":string,"date":"YYYY-MM-DD","startTime":"HH:MM"|null,"endTime":"HH:MM"|null,"location":string|null}. If the year is missing assume the next occurrence. If no event is found respond {"error":"reason"}.`},
+      {role:'user',content:[{type:'image_url',image_url:{url:b64}},{type:'text',text:'Extract the event details.'}]}
+    ],500);
+    const ev=JSON.parse(out.replace(/```json|```/g,'').trim());
+    if(ev.error)throw new Error(ev.error);
+    if(!ev.title||!ev.date)throw new Error('Could not find a title/date on the poster');
+    if(!confirm(`Add event?\n\n${ev.title}\n${ev.date}${ev.startTime?' '+ev.startTime:''}${ev.location?'\n@ '+ev.location:''}`))return;
+    S.events.push(Object.assign({id:uid()},ev));save();
+    const synced=await gcalAddEvent(ev);
+    toast(synced?'Added to app + Google Calendar':'Added to app calendar'+(S.settings.gClient?' (Google sync failed)':''));
+    renderCal();
+  }catch(e){toast('Poster scan failed: '+e.message);}
+}
+
+/* ================= INIT ================= */
+function init(){
+  document.getElementById('headDate').textContent=new Date().toLocaleDateString('en',{weekday:'long',month:'long',day:'numeric'});
+  // restore an in-flight timer across refreshes
+  const a=AT();
+  if(a){timerMode=a.mode;}
+  renderTasks();renderTimerView();renderCal();renderPlan();
+  // try silent google reconnect after the GSI script loads
+  if(S.settings.gClient){
+    const wait=setInterval(()=>{if(googleReady()){clearInterval(wait);ensureToken().then(t=>{if(t){loadGCalList().then(()=>{renderSettings();fetchGEventsForMonth();});}});}},400);
+    setTimeout(()=>clearInterval(wait),8000);
+  }
+}
+init();
+</script>
+</body>
+</html>
