@@ -50,7 +50,7 @@ h2.sec{font-size:12.5px;font-weight:700;text-transform:uppercase;letter-spacing:
 .segs button.on{color:var(--ink);background:var(--card2);box-shadow:0 2px 8px rgba(0,0,0,.4),inset 0 0 0 1px var(--line)}
 
 .card{background:var(--card);border:1px solid var(--hair);border-radius:var(--r);padding:14px 16px;margin-bottom:10px}
-.task{display:flex;align-items:center;gap:12px;background:var(--card);border:1px solid var(--hair);border-radius:var(--r);padding:13px 15px;margin-bottom:9px;transition:transform .15s var(--spring)}
+.task{display:flex;align-items:center;gap:12px;background:var(--card);border:1px solid var(--hair);border-radius:var(--r);padding:13px 15px;margin-bottom:9px;transition:transform .15s var(--spring);animation:taskIn .3s var(--spring) backwards}
 .task:active{transform:scale(.985)}
 .task.done{opacity:.4}
 .task.done .t-title{text-decoration:line-through}
@@ -200,6 +200,21 @@ h2.sec{font-size:12.5px;font-weight:700;text-transform:uppercase;letter-spacing:
 #toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 .spin{display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,.25);border-top-color:#fff;border-radius:50%;animation:sp .9s linear infinite;vertical-align:-2px}
 @keyframes sp{to{transform:rotate(360deg)}}
+.pbtn.sm{padding:7px 12px;font-size:12.5px;border-radius:10px;color:var(--sub)}
+.pbtn.sm.red{color:var(--danger)}
+.iconBtn{width:34px;height:34px;border-radius:50%;background:var(--card2);display:flex;align-items:center;justify-content:center;font-size:14px;color:var(--sub)}
+.iconBtn:active{transform:scale(.88)}
+@keyframes taskIn{from{opacity:0;transform:translateY(10px) scale(.98)}to{opacity:1;transform:none}}
+@keyframes pop{0%{transform:scale(.5)}55%{transform:scale(1.18)}100%{transform:scale(1)}}
+.task.done .t-check{animation:pop .32s var(--spring)}
+#planWindow{flex-wrap:nowrap}
+#planWindow .twrap{position:relative;flex:1;min-width:0}
+#planWindow .twrap input{padding-right:30px}
+.miniReset{position:absolute;right:5px;top:50%;transform:translateY(-50%);font-size:13px;color:var(--faint);padding:4px}
+.miniReset:active{color:var(--blue)}
+.typeRow .ord{color:var(--faint);font-size:14px;padding:2px 5px}
+.typeRow .ord:active{color:var(--blue)}
+.pedit .okBtn{color:var(--ok);font-size:17px;padding:0 4px}
 @media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 </style>
 </head>
@@ -218,7 +233,7 @@ h2.sec{font-size:12.5px;font-weight:700;text-transform:uppercase;letter-spacing:
       <button data-seg="bytype">By type</button>
       <button data-seg="done">Done</button>
     </div>
-    <div class="planBtns" style="margin:0 0 8px"><button class="pbtn" onclick="openSheet('importSheet')">📋 Paste a list</button></div>
+    <div class="planBtns" style="margin:0 0 8px"><button class="pbtn sm" onclick="openSheet('importSheet')">📋 Paste a list</button></div>
     <div id="taskList"></div>
   </section>
 
@@ -249,7 +264,7 @@ h2.sec{font-size:12.5px;font-weight:700;text-transform:uppercase;letter-spacing:
   <section class="view" id="view-cal">
     <div id="calHead">
       <div class="m" id="calMonth"></div>
-      <div class="nav"><button onclick="moveMonth(-1)">‹</button><button onclick="jumpToday()">•</button><button onclick="moveMonth(1)">›</button></div>
+      <div class="nav"><button class="iconBtn" onclick="document.getElementById('posterInput').click()" title="Scan a poster into the calendar">📷</button><button onclick="moveMonth(-1)">‹</button><button onclick="jumpToday()">•</button><button onclick="moveMonth(1)">›</button></div>
     </div>
     <div class="dowRow"><div class="dow">S</div><div class="dow">M</div><div class="dow">T</div><div class="dow">W</div><div class="dow">T</div><div class="dow">F</div><div class="dow">S</div></div>
     <div id="calGrid"></div>
@@ -258,15 +273,16 @@ h2.sec{font-size:12.5px;font-weight:700;text-transform:uppercase;letter-spacing:
   <section class="view" id="view-plan">
     <div class="frow"><input type="date" id="planDate"></div>
     <div id="planWindow">
-      <input type="time" id="planStart" value="08:00"><span>→</span><input type="time" id="planEnd" value="22:00">
+      <div class="twrap"><input type="time" id="planStart" value="08:00"><button class="miniReset" onclick="resetWin('start')">⟲</button></div>
+      <span>→</span>
+      <div class="twrap"><input type="time" id="planEnd" value="22:00"><button class="miniReset" onclick="resetWin('end')">⟲</button></div>
+      <button class="pbtn blue" id="genPlanBtn" onclick="generatePlan()">✦ Generate</button>
     </div>
     <div class="planBtns">
-      <button class="pbtn blue" id="genPlanBtn" onclick="generatePlan()">✦ Generate</button>
-      <button class="pbtn" id="editPlanBtn" onclick="togglePlanEdit()">Edit</button>
-      <button class="pbtn red" onclick="deletePlan()">Delete</button>
-      <button class="pbtn" onclick="document.getElementById('posterInput').click()">📷 Poster</button>
-      <input type="file" id="posterInput" accept="image/*" style="display:none" onchange="scanPoster(this)">
+      <button class="pbtn sm" id="editPlanBtn" onclick="togglePlanEdit()">Edit</button>
+      <button class="pbtn sm red" onclick="deletePlan()">Delete</button>
     </div>
+    <input type="file" id="posterInput" accept="image/*" style="display:none" onchange="scanPoster(this)">
     <div id="planBlocks"></div>
     <div id="planWarn"></div>
     <div id="planRevise">
@@ -492,22 +508,25 @@ $('taskSegs').addEventListener('click',e=>{
 function taskRemaining(t){if(!t.estimateMin)return null;return t.estimateMin*60-(t.spentSec||0);}
 function ringSVG(t){
   if(!t.estimateMin)return'';
-  const frac=Math.min(1,(t.spentSec||0)/(t.estimateMin*60));
+  const a=AT();
+  const live=(a&&a.taskId===t.id&&a.mode!=='pomodoro')?elapsedSec():0;
+  const spent=(t.spentSec||0)+live;
+  const frac=Math.min(1,spent/(t.estimateMin*60));
   const C=2*Math.PI*16,off=C*(1-frac);
   const col=frac>=1?'#D6904D':'#4D7FD6';
-  const rem=Math.max(0,Math.ceil((t.estimateMin*60-(t.spentSec||0))/60));
-  return `<div class="t-ring"><svg width="40" height="40" viewBox="0 0 40 40">
+  const rem=Math.max(0,Math.ceil((t.estimateMin*60-spent)/60));
+  return `<div class="t-ring" onclick="event.stopPropagation();openTimerFor('${t.id}')"><svg width="40" height="40" viewBox="0 0 40 40">
     <circle cx="20" cy="20" r="16" stroke="rgba(140,160,190,.15)" stroke-width="3.5" fill="none"/>
     <circle cx="20" cy="20" r="16" stroke="${col}" stroke-width="3.5" fill="none" stroke-linecap="round"
       stroke-dasharray="${C.toFixed(1)}" stroke-dashoffset="${off.toFixed(1)}"/></svg><div class="lbl">${rem}m</div></div>`;
 }
-function taskRow(t){
+function taskRow(t,i=0){
   const ty=typeOf(t.typeId);
   let dateLbl=t.date?(t.date===todayStr()?'Today':t.date.slice(5).replace('-','/')):'Someday';
   if(t.dateEnd&&t.dateEnd!==t.date)dateLbl+='–'+t.dateEnd.slice(5).replace('-','/');
   const tf=t.startTime?` · ${fmt12(t.startTime)}${t.endTime?'–'+fmt12(t.endTime):''}`:'';
   const spent=t.spentSec?` · ${fmtMin(Math.round(t.spentSec/60))} done`:'';
-  return `<div class="task ${t.done?'done':''}">
+  return `<div class="task ${t.done?'done':''}" style="animation-delay:${Math.min(i*35,350)}ms">
     <button class="t-check" onclick="toggleDone('${t.id}')">✓</button>
     <div class="t-body" onclick="openEditSheet('${t.id}')">
       <div class="t-title">${esc(t.title)}</div>
@@ -666,7 +685,13 @@ function deleteEditingEvent(){
 }
 
 /* ================= TIMER ================= */
-let tick=null,timerMode='stopwatch';
+let tick=null,timerMode='stopwatch',pendingTimerTask=null;
+function openTimerFor(id){
+  const a=AT();
+  if(a&&a.taskId&&a.taskId!==id){toast('Another session is in progress');switchView('timer');return;}
+  if(!a)pendingTimerTask=id;
+  switchView('timer');
+}
 function AT(){return S.activeTimer;}
 function elapsedSec(){const a=AT();if(!a)return 0;return a.accumSec+(a.running?(Date.now()-a.startTs)/1000:0);}
 function setTimerMode(m){
@@ -687,9 +712,18 @@ function startTaskTimer(taskId){
 }
 function toggleTimer(){
   let a=AT();
-  if(!a){const taskId=$('timerTask').value||null;
+  if(!a){const taskId=$('timerTask').value||null;pendingTimerTask=null;
     S.activeTimer={mode:timerMode,taskId,startTs:Date.now(),accumSec:0,running:true};}
-  else if(a.running){a.accumSec=elapsedSec();a.running=false;}
+  else if(a.running){
+    a.accumSec=elapsedSec();a.running=false;
+    if(a.mode!=='pomodoro'&&a.taskId&&a.accumSec>=10){
+      const t=S.tasks.find(x=>x.id===a.taskId);
+      const sec=Math.round(a.accumSec);
+      S.sessions.push({id:uid(),taskId:a.taskId,date:todayStr(),durSec:sec,mode:a.mode,ts:Date.now()});
+      if(t)t.spentSec=(t.spentSec||0)+sec;
+      a.accumSec=0;
+    }
+  }
   else{a.startTs=Date.now();a.running=true;}
   save();renderTimerView();
 }
@@ -722,7 +756,7 @@ function renderTimerView(){
   const a=AT(),C=716.3;
   const digits=$('digits'),sub=$('timerSub'),ring=$('ringProg'),start=$('btnStart'),fin=$('btnFinish'),sel=$('timerTask'),info=$('taskBudgetInfo');
   const open=S.tasks.filter(t=>!t.done);
-  sel.innerHTML=`<option value="">No task — just track time</option>`+open.map(t=>`<option value="${t.id}" ${a&&a.taskId===t.id?'selected':''}>${esc(t.title)}${t.estimateMin?` (${fmtMin(t.estimateMin)})`:''}</option>`).join('');
+  sel.innerHTML=`<option value="">No task — just track time</option>`+open.map(t=>`<option value="${t.id}" ${(a&&a.taskId===t.id)||(!a&&pendingTimerTask===t.id)?'selected':''}>${esc(t.title)}${t.estimateMin?` (${fmtMin(t.estimateMin)})`:''}</option>`).join('');
   sel.disabled=!!a;
   if(a){$('modeStopwatch').classList.toggle('on',a.mode==='stopwatch');$('modePomodoro').classList.toggle('on',a.mode==='pomodoro');}
   const e=a?elapsedSec():0;
@@ -841,7 +875,7 @@ function renderDayView(){
     const top=b.s/60*HOUR_H,h=Math.max(16,(b.e-b.s)/60*HOUR_H-2);
     const w=100/b.lanes,left=b.lane*w;
     const style=b.kind==='plan'?'':`background:${b.col}24;color:${b.col};border-left-color:${b.col};`;
-    return `<div class="blk lp ${b.kind==='plan'?'plan':''}" data-kind="${b.kind}" data-id="${b.id||''}"
+    return `<div class="blk lp ${b.kind==='plan'?'plan':''}" data-kind="${b.kind}" data-id="${b.id||''}" data-title="${esc(b.title)}"
       style="top:${top}px;height:${h}px;left:${left}%;width:calc(${w}% - 3px);${style}${b.done?'opacity:.4;':''}">
       ${esc(b.title)}${h>30?`<div class="bt">${b.sub}</div>`:''}</div>`;
   }).join('');
@@ -856,11 +890,11 @@ let lpTimer=null,lpMoved=false;
 document.addEventListener('touchstart',e=>{
   const el=e.target.closest('.lp');if(!el)return;
   lpMoved=false;
-  lpTimer=setTimeout(()=>{if(!lpMoved)showActions(el.dataset.kind,el.dataset.id,el.textContent.trim());},480);
+  lpTimer=setTimeout(()=>{if(!lpMoved)showActions(el.dataset.kind,el.dataset.id,el.dataset.title||el.textContent.trim());},480);
 },{passive:true});
 document.addEventListener('touchmove',()=>{lpMoved=true;clearTimeout(lpTimer);},{passive:true});
 document.addEventListener('touchend',()=>clearTimeout(lpTimer),{passive:true});
-document.addEventListener('contextmenu',e=>{const el=e.target.closest('.lp');if(el){e.preventDefault();showActions(el.dataset.kind,el.dataset.id,el.textContent.trim());}});
+document.addEventListener('contextmenu',e=>{const el=e.target.closest('.lp');if(el){e.preventDefault();showActions(el.dataset.kind,el.dataset.id,el.dataset.title||el.textContent.trim());}});
 function showActions(kind,id,label){
   if(navigator.vibrate)navigator.vibrate(10);
   $('actTitle').textContent=label.slice(0,60);
@@ -873,7 +907,15 @@ function showActions(kind,id,label){
     html=`<button class="actBtn" onclick="closeSheet('actionSheet');openEventSheet('${id}')">Edit event</button>
       <button class="actBtn danger" onclick="actDeleteEvent('${id}')">Delete event</button>`;
   }else if(kind==='plan'){
-    html=`<button class="actBtn" onclick="closeSheet('actionSheet');closeDaySheet();switchView('plan')">Open in Plan tab</button>`;
+    const L=label.toLowerCase();
+    const t=S.tasks.find(x=>!x.done&&(L.includes(x.title.toLowerCase())||x.title.toLowerCase().includes(L)));
+    closeDaySheet();
+    if(t)openTimerFor(t.id);
+    else{switchView('timer');toast('No matching task — pick one manually');}
+    return;
+  }else if(kind==='pblk'){
+    startSingleEdit(parseInt(id));
+    return;
   }else{
     html=`<div class="small" style="text-align:center;padding:8px 0 14px">Google event — edit it in Google Calendar</div>`;
   }
@@ -1060,8 +1102,10 @@ function renderSettings(){
   $('setOrKey').value=S.settings.orKey;
   $('setOrModel').value=S.settings.orModel;
   $('setGClient').value=S.settings.gClient;
-  $('typeManager').innerHTML=S.types.map(t=>`
+  $('typeManager').innerHTML=S.types.map((t,i)=>`
     <div class="typeRow">
+      <button class="ord" onclick="moveType('${t.id}',-1)" ${i===0?'style="opacity:.25"':''}>▲</button>
+      <button class="ord" onclick="moveType('${t.id}',1)" ${i===S.types.length-1?'style="opacity:.25"':''}>▼</button>
       <input type="color" value="${t.color}" onchange="updType('${t.id}','color',this.value)">
       <input value="${esc(t.name)}" onchange="updType('${t.id}','name',this.value)" style="flex:1">
       <button style="color:var(--danger);font-size:13px" onclick="delType('${t.id}')">Delete</button>
@@ -1085,6 +1129,13 @@ function renderSettings(){
       </label>`).join('')||`<p class="small">Calendars load after sign-in.</p>`}
     </div>`;
   }).join('');
+}
+function moveType(id,dir){
+  const i=S.types.findIndex(t=>t.id===id);
+  const j=i+dir;
+  if(i<0||j<0||j>=S.types.length)return;
+  [S.types[i],S.types[j]]=[S.types[j],S.types[i]];
+  save();renderSettings();renderTasks();
 }
 function updType(id,k,v){const t=typeOf(id);if(t){t[k]=k==='name'?v.trim():v;save();renderTasks();}}
 function delType(id){if(!confirm('Delete this type? Tasks keep existing without a type.'))return;S.types=S.types.filter(t=>t.id!==id);save();renderSettings();renderTasks();}
@@ -1178,10 +1229,28 @@ function deletePlan(){
   const date=$('planDate').value||todayStr();
   if(!S.plans[date]){toast('No plan to delete');return;}
   if(!confirm('Delete this day\'s plan?'))return;
-  delete S.plans[date];planEditing=false;$('editPlanBtn').textContent='Edit';
+  delete S.plans[date];planEditing=false;singleEditIdx=null;$('editPlanBtn').textContent='Edit';
   save();renderPlan();renderCal();if(dayViewDate)renderDayView();toast('Plan deleted');
 }
-let planEditing=false;
+let planEditing=false,singleEditIdx=null;
+function startSingleEdit(i){
+  if(navigator.vibrate)navigator.vibrate(10);
+  planEditing=false;$('editPlanBtn').textContent='Edit';
+  singleEditIdx=i;renderPlan();
+}
+function saveSingleEdit(i){
+  const date=$('planDate').value||todayStr();
+  const row=document.querySelector('#planBlocks .pedit');
+  if(row){
+    const[s,e,t]=row.querySelectorAll('input');
+    if(s.value&&t.value.trim())S.plans[date].blocks[i]={start:s.value,end:e.value||s.value,title:t.value.trim()};
+    S.plans[date].blocks.sort((a,b)=>a.start.localeCompare(b.start));
+  }
+  singleEditIdx=null;save();renderPlan();renderCal();if(dayViewDate)renderDayView();
+}
+function resetWin(which){
+  if(which==='start')$('planStart').value='08:00';else $('planEnd').value='22:00';
+}
 function togglePlanEdit(){
   const date=$('planDate').value||todayStr();
   if(!planEditing&&(!S.plans[date]||!S.plans[date].blocks))S.plans[date]={blocks:[{start:'09:00',end:'10:00',title:'New block'}],unscheduled:[],suggestion:null};
@@ -1223,8 +1292,14 @@ function renderPlan(){
       `<button class="pbtn" style="margin-top:6px" onclick="savePlanEdits();addPlanBlock()">+ Add block</button>`;
     return;
   }
-  let html=(p.blocks||[]).map((b,i)=>`<div class="pblk" style="animation-delay:${i*40}ms">
-    <div class="rail"></div><div class="tm">${fmt12(b.start)}–${fmt12(b.end)}</div><div class="ti">${esc(b.title)}</div></div>`).join('');
+  let html=(p.blocks||[]).map((b,i)=>{
+    if(i===singleEditIdx)return `<div class="pedit">
+      <input class="t1" type="time" value="${b.start}"><input class="t1" type="time" value="${b.end}">
+      <input class="t2" value="${esc(b.title)}"><button class="okBtn" onclick="saveSingleEdit(${i})">✓</button>
+      <button onclick="delPlanBlock(${i});singleEditIdx=null">✕</button></div>`;
+    return `<div class="pblk lp" data-kind="pblk" data-id="${i}" data-title="${esc(b.title)}" style="animation-delay:${i*40}ms">
+      <div class="rail"></div><div class="tm">${fmt12(b.start)}–${fmt12(b.end)}</div><div class="ti">${esc(b.title)}</div></div>`;
+  }).join('');
   if(p.legacy)html+=`<div class="card" style="white-space:pre-wrap;font-size:13.5px;color:var(--sub)">${esc(p.legacy)}</div>`;
   el.innerHTML=html;
   if(p.unscheduled&&p.unscheduled.length){
@@ -1233,7 +1308,7 @@ function renderPlan(){
       ${p.suggestion?esc(p.suggestion):''}</div>`;
   }
 }
-$('planDate').addEventListener('change',()=>{planEditing=false;$('editPlanBtn').textContent='Edit';renderPlan();});
+$('planDate').addEventListener('change',()=>{planEditing=false;singleEditIdx=null;$('editPlanBtn').textContent='Edit';renderPlan();});
 
 async function scanPoster(input){
   const file=input.files[0];if(!file)return;input.value='';
