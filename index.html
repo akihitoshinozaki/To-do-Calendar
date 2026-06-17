@@ -744,9 +744,7 @@ function toggleTimer(){
   if(!a){const taskId=$('timerTask').value||null;pendingTimerTask=null;
     S.activeTimer={mode:timerMode,taskId,startTs:Date.now(),accumSec:0,running:true};}
   else if(a.running){
-    const e=elapsedSec();
-    if(a.mode!=='pomodoro'&&a.taskId){logSession(a,e);a.accumSec=0;}  // checkpoint stopwatch task time
-    else a.accumSec=e;                                                // pomodoro/no-task: just freeze
+    a.accumSec=elapsedSec();   // freeze the clock — time is held, not banked or reset
     a.running=false;
   }
   else{a.startTs=Date.now();a.running=true;}
@@ -797,8 +795,9 @@ function renderTimerView(){
       ring.setAttribute('stroke',remain>0?'#4D7FD6':'#D6904D');
       if(remain<=0&&a.running&&!a._warned){a._warned=true;tryBuzz();toast(`Time's up on “${task.title}” — Finish to mark it done`);}
     }else{
-      digits.textContent=fmtClock(e);sub.textContent=a.running?'Tracking':'Paused';
-      ring.style.strokeDashoffset=C*(1-((e%3600)/3600));
+      const shown=(task?(task.spentSec||0):0)+e;   // banked + current segment
+      digits.textContent=fmtClock(shown);sub.textContent=a.running?'Tracking':'Paused';
+      ring.style.strokeDashoffset=C*(1-((shown%3600)/3600));
     }
     start.textContent=a.running?'Pause':'Resume';fin.style.display='inline-block';
     info.textContent=task?(task.estimateMin?`${task.title} — ${fmtMin(task.estimateMin)} budget, ${fmtMin(Math.round((task.spentSec||0)/60))} spent`:task.title):'';
