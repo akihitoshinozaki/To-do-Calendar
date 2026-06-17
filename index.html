@@ -426,7 +426,7 @@ const defaults={
   tasks:[],sessions:[],events:[],plans:{},
   types:[{id:'t1',name:'Study',color:'#4D7FD6'},{id:'t2',name:'Research',color:'#4FAE85'},{id:'t3',name:'Personal',color:'#D6904D'}],
   settings:{pomoWork:25,pomoBreak:5,orKey:'',orModel:'openai/gpt-4o-mini',gClient:''},
-  gAccounts:[], gTokens:{}, activeTimer:null
+  gAccounts:[], gTokens:{}, timers:{}, activeKey:null
 };
 let S=load();
 function load(){
@@ -434,6 +434,14 @@ function load(){
     const st=Object.assign({},defaults,s,{settings:Object.assign({},defaults.settings,s.settings||{})});
     if(!Array.isArray(st.gAccounts))st.gAccounts=[];
     if(!st.gTokens)st.gTokens={};
+    if(!st.timers)st.timers={};
+    if(st.activeKey===undefined)st.activeKey=null;
+    if(s.activeTimer&&Object.keys(st.timers).length===0){          // migrate v3/v4 single timer
+      const k=s.activeTimer.taskId||'__none';
+      st.timers[k]={taskId:s.activeTimer.taskId||null,mode:s.activeTimer.mode||'stopwatch',accumSec:s.activeTimer.accumSec||0,startTs:s.activeTimer.startTs||Date.now(),running:!!s.activeTimer.running};
+      st.activeKey=k;
+    }
+    delete st.activeTimer;
     for(const k in st.plans){if(typeof st.plans[k]==='string')st.plans[k]={legacy:st.plans[k],blocks:[]};}
     return st;}}catch(e){}
   return JSON.parse(JSON.stringify(defaults));
@@ -508,9 +516,7 @@ $('taskSegs').addEventListener('click',e=>{
 function taskRemaining(t){if(!t.estimateMin)return null;return t.estimateMin*60-(t.spentSec||0);}
 function ringSVG(t){
   if(!t.estimateMin)return'';
-  const a=AT();
-  const live=(a&&a.taskId===t.id&&a.mode!=='pomodoro')?elapsedSec():0;
-  const spent=(t.spentSec||0)+live;
+  const spent=taskTrackedSec(t.id);
   const frac=Math.min(1,spent/(t.estimateMin*60));
   const C=2*Math.PI*16,off=C*(1-frac);
   const col=frac>=1?'#D6904D':'#4D7FD6';
@@ -661,7 +667,7 @@ function saveTask(){
 }
 function deleteEditingTask(){
   const i=S.tasks.findIndex(x=>x.id===editingId);if(i<0)return;
-  const t=S.tasks[i];S.tasks.splice(i,1);save();closeSheet('addSheet');renderTasks();renderCal();if(dayViewDate)renderDayView();
+  const t=S.tasks[i];S.tasks.splice(i,1);delete S.timers[keyFor(t.id)];if(S.activeKey===keyFor(t.id))S.activeKey=null;save();closeSheet('addSheet');renderTasks();renderCal();if(dayViewDate)renderDayView();
   if(t.gcalEventId)gcalDeleteEvent(t);toast('Task deleted');
 }
 /* ----- app event editor ----- */
@@ -684,98 +690,88 @@ function deleteEditingEvent(){
   save();closeSheet('eventSheet');renderCal();if(dayViewDate)renderDayView();toast('Event deleted');
 }
 
-/* ================= TIMER ================= */
-let tick=null,timerMode='stopwatch',pendingTimerTask=null;
-function sessionWorkSec(a,e){
-  if(a.mode==='pomodoro'){const w=S.settings.pomoWork*60,b=S.settings.pomoBreak*60,cyc=w+b;
-    const full=Math.floor(e/cyc);return full*w+Math.min(e-full*cyc,w);}
+/* ================= TIMER — per-task clocks, nothing ever resets ================= */
+/* Each task gets its own persistent stopwatch in S.timers[key]; switching just
+   pauses one and shows another. Time folds into spentSec only on Finish. */
+let tick=null,timerMode='stopwatch';
+const NK='__none';
+const keyFor=id=>id||NK;
+function AT(){return S.activeKey?(S.timers[S.activeKey]||null):null;}
+function timerElapsed(key){const t=S.timers[key];if(!t)return 0;return t.accumSec+(t.running?(Date.now()-t.startTs)/1000:0);}
+function elapsedSec(){return S.activeKey?timerElapsed(S.activeKey):0;}
+function workElapsed(key){
+  const t=S.timers[key];if(!t)return 0;
+  const e=timerElapsed(key);
+  if(t.mode==='pomodoro'){const w=S.settings.pomoWork*60,b=S.settings.pomoBreak*60,cyc=w+b,full=Math.floor(e/cyc);return full*w+Math.min(e-full*cyc,w);}
   return e;
 }
-function logSession(a,e,opts={}){
-  const workSec=Math.round(sessionWorkSec(a,e));
-  if(workSec>=10){
-    S.sessions.push({id:uid(),taskId:a.taskId||null,date:todayStr(),durSec:workSec,mode:a.mode,ts:Date.now()});
-    if(a.taskId){const t=S.tasks.find(x=>x.id===a.taskId);if(t)t.spentSec=(t.spentSec||0)+workSec;}
-    if(opts.toast)toast(`Logged ${fmtMin(Math.max(1,Math.round(workSec/60)))} of focus`);
-  }
-  return workSec;
+// total time on a task = logged spentSec + its live in-progress clock
+function taskTrackedSec(id){return (S.tasks.find(x=>x.id===id)?.spentSec||0)+workElapsed(keyFor(id));}
+function ensureTimer(taskId){const k=keyFor(taskId);
+  if(!S.timers[k])S.timers[k]={taskId:taskId||null,mode:timerMode,accumSec:0,startTs:Date.now(),running:false};
+  return S.timers[k];}
+function pauseActive(){const a=AT();if(a&&a.running){a.accumSec=timerElapsed(S.activeKey);a.running=false;}}
+// open a task's clock without starting it (budget circle / ring tap)
+function openTimerFor(id){pauseActive();S.activeKey=keyFor(id);const t=ensureTimer(id);timerMode=t.mode;save();switchView('timer');}
+// open + start/resume (▶ on a card)
+function startTaskTimer(taskId){
+  pauseActive();S.activeKey=keyFor(taskId);
+  const t=ensureTimer(taskId);timerMode=t.mode;
+  if(!t.running){t.running=true;t.startTs=Date.now();}
+  save();switchView('timer');
 }
-// switch which task the timer is tracking — commits the old task's accrued time, keeps running state
+// dropdown switch — keeps running if the previous one was running
 function switchTimerTask(newId){
-  newId=newId||null;
-  const a=AT();
-  if(!a){pendingTimerTask=newId;renderTimerView();return;}
-  if(a.taskId===newId)return;
-  logSession(a,elapsedSec());                 // bank time for the task we're leaving
-  S.activeTimer={mode:a.mode,taskId:newId,startTs:Date.now(),accumSec:0,running:a.running};
+  const wasRunning=AT()?AT().running:false;
+  pauseActive();S.activeKey=keyFor(newId);
+  const t=ensureTimer(newId);t.mode=timerMode;
+  if(wasRunning&&!t.running){t.running=true;t.startTs=Date.now();}
   save();renderTasks();renderTimerView();
 }
-function openTimerFor(id){
-  const a=AT();
-  if(a&&a.taskId!==id){logSession(a,elapsedSec());S.activeTimer=null;}  // bank & release the other task
-  if(!AT())pendingTimerTask=id;
-  switchView('timer');
-}
-function AT(){return S.activeTimer;}
-function elapsedSec(){const a=AT();if(!a)return 0;return a.accumSec+(a.running?(Date.now()-a.startTs)/1000:0);}
 function setTimerMode(m){
-  const a=AT();
-  if(m===timerMode&&!a){return;}
-  if(a){
-    logSession(a,elapsedSec());           // bank time tracked so far
-    const keepTask=a.taskId,wasRunning=a.running;
-    S.activeTimer=wasRunning?{mode:m,taskId:keepTask,startTs:Date.now(),accumSec:0,running:true}:null;
-    if(!wasRunning)pendingTimerTask=keepTask;
-  }
-  timerMode=m;save();
+  timerMode=m;const a=AT();
+  if(a){pauseActive();a.mode=m;a.accumSec=0;a.startTs=Date.now();a._buzzed=null;a._warned=false;}
   $('modeStopwatch').classList.toggle('on',m==='stopwatch');
   $('modePomodoro').classList.toggle('on',m==='pomodoro');
-  renderTasks();renderTimerView();
-}
-function startTaskTimer(taskId){
-  let a=AT();
-  if(a&&a.taskId!==taskId){logSession(a,elapsedSec());S.activeTimer=null;a=null;}
-  if(!a)S.activeTimer={mode:timerMode,taskId,startTs:Date.now(),accumSec:0,running:true};
-  else if(!a.running){a.running=true;a.startTs=Date.now();}
-  pendingTimerTask=null;save();switchView('timer');
+  save();renderTimerView();
 }
 function toggleTimer(){
   let a=AT();
-  if(!a){const taskId=$('timerTask').value||null;pendingTimerTask=null;
-    S.activeTimer={mode:timerMode,taskId,startTs:Date.now(),accumSec:0,running:true};}
-  else if(a.running){
-    a.accumSec=elapsedSec();   // freeze the clock — time is held, not banked or reset
-    a.running=false;
-  }
+  if(!a){const id=$('timerTask').value||null;S.activeKey=keyFor(id);a=ensureTimer(id);a.mode=timerMode;}
+  if(a.running){a.accumSec=timerElapsed(S.activeKey);a.running=false;}
   else{a.startTs=Date.now();a.running=true;}
   save();renderTimerView();
 }
-function resetTimer(){const a=AT();if(!a)return;
-  if(elapsedSec()>30&&!confirm('Discard this session without logging it?'))return;
-  S.activeTimer=null;save();renderTimerView();}
+function resetTimer(){
+  const a=AT();if(!a)return;
+  if(timerElapsed(S.activeKey)>30&&!confirm("Clear this task's timer without logging it?"))return;
+  delete S.timers[S.activeKey];S.activeKey=null;save();renderTasks();renderTimerView();
+}
 function finishSession(){
   const a=AT();if(!a)return;
-  const t=a.taskId?S.tasks.find(x=>x.id===a.taskId):null;
-  logSession(a,elapsedSec(),{toast:true});
-  S.activeTimer=null;save();renderTimerView();
-  if(t&&t.estimateMin&&taskRemaining(t)<=0&&!t.done){
+  const id=a.taskId,t=id?S.tasks.find(x=>x.id===id):null;
+  const workSec=Math.round(workElapsed(S.activeKey));
+  if(workSec>=1){
+    S.sessions.push({id:uid(),taskId:id||null,date:todayStr(),durSec:workSec,mode:a.mode,ts:Date.now()});
+    if(t)t.spentSec=(t.spentSec||0)+workSec;
+    toast(`Logged ${fmtMin(Math.max(1,Math.round(workSec/60)))} of focus`);
+  }
+  delete S.timers[S.activeKey];S.activeKey=null;save();renderTimerView();
+  if(t&&t.estimateMin&&(t.estimateMin*60-(t.spentSec||0))<=0&&!t.done){
     if(confirm(`Time budget for “${t.title}” is used up. Mark it done?`)){t.done=true;t.doneAt=Date.now();save();gcalSyncTask(t);}
   }
   renderTasks();renderCal();
 }
-function pomoPhaseAt(e){const w=S.settings.pomoWork*60,b=S.settings.pomoBreak*60,cyc=w+b;
-  const into=e%cyc,n=Math.floor(e/cyc)+1;
-  return into<w?{phase:'work',left:w-into,n}:{phase:'break',left:cyc-into,n};}
+function pomoPhaseAt(e){const w=S.settings.pomoWork*60,b=S.settings.pomoBreak*60,cyc=w+b;const into=e%cyc,n=Math.floor(e/cyc)+1;return into<w?{phase:'work',left:w-into,n}:{phase:'break',left:cyc-into,n};}
 function renderTimerView(){
   const a=AT(),C=716.3;
   const digits=$('digits'),sub=$('timerSub'),ring=$('ringProg'),start=$('btnStart'),fin=$('btnFinish'),sel=$('timerTask'),info=$('taskBudgetInfo');
   const open=S.tasks.filter(t=>!t.done);
-  sel.innerHTML=`<option value="">No task — just track time</option>`+open.map(t=>`<option value="${t.id}" ${(a&&a.taskId===t.id)||(!a&&pendingTimerTask===t.id)?'selected':''}>${esc(t.title)}${t.estimateMin?` (${fmtMin(t.estimateMin)})`:''}</option>`).join('');
+  const curId=a?a.taskId:null;
+  sel.innerHTML=`<option value="">No task — just track time</option>`+open.map(t=>`<option value="${t.id}" ${curId===t.id?'selected':''}>${esc(t.title)}${t.estimateMin?` (${fmtMin(t.estimateMin)})`:''}${S.timers[keyFor(t.id)]?' • in progress':''}</option>`).join('');
   sel.disabled=false;
-  const e=a?elapsedSec():0;
-  // resolve the task being shown — active session OR a task queued via the ▶ / budget-circle
-  const curTaskId=a?a.taskId:pendingTimerTask;
-  const task=curTaskId?S.tasks.find(x=>x.id===curTaskId):null;
+  const e=a?timerElapsed(S.activeKey):0;
+  const task=curId?S.tasks.find(x=>x.id===curId):null;
   const mode=a?a.mode:timerMode;
   $('modeStopwatch').classList.toggle('on',mode==='stopwatch');
   $('modePomodoro').classList.toggle('on',mode==='pomodoro');
@@ -784,39 +780,29 @@ function renderTimerView(){
       const p=pomoPhaseAt(e);
       digits.textContent=fmtClock(p.left);sub.textContent=(p.phase==='work'?'Focus':'Break')+` · round ${p.n}`;
       const tot=p.phase==='work'?S.settings.pomoWork*60:S.settings.pomoBreak*60;
-      ring.style.strokeDashoffset=C*(p.left/tot);
-      ring.setAttribute('stroke',p.phase==='work'?'#4D7FD6':'#4FAE85');
+      ring.style.strokeDashoffset=C*(p.left/tot);ring.setAttribute('stroke',p.phase==='work'?'#4D7FD6':'#4FAE85');
       if(p.left<1&&a.running&&a._buzzed!==p.n+p.phase){a._buzzed=p.n+p.phase;tryBuzz();}
-    }else{
-      digits.textContent=fmtClock(S.settings.pomoWork*60);sub.textContent='Ready';
-      ring.style.strokeDashoffset=C;ring.setAttribute('stroke','#4D7FD6');
-    }
+    }else{digits.textContent=fmtClock(S.settings.pomoWork*60);sub.textContent='Ready';ring.style.strokeDashoffset=C;ring.setAttribute('stroke','#4D7FD6');}
   }else if(task&&task.estimateMin){
-    // STOPWATCH on a budgeted task — always shows the budget counting down (even before Start)
     const remain=task.estimateMin*60-(task.spentSec||0)-e;
     if(remain>=0){
       digits.textContent=fmtClock(remain);
       sub.textContent=!a?'Budget remaining':(a.running?'Counting down':'Paused');
-      ring.style.strokeDashoffset=C*Math.min(1,remain/(task.estimateMin*60));
-      ring.setAttribute('stroke','#4D7FD6');
+      ring.style.strokeDashoffset=C*Math.min(1,remain/(task.estimateMin*60));ring.setAttribute('stroke','#4D7FD6');
     }else{
-      // past the budget — keep running, shown as overtime (you chose to go over)
-      digits.textContent='+'+fmtClock(-remain);
-      sub.textContent='Over budget';
+      digits.textContent='+'+fmtClock(-remain);sub.textContent='Over budget';
       ring.style.strokeDashoffset=0;ring.setAttribute('stroke','#D6904D');
       if(a&&a.running&&!a._warned){a._warned=true;tryBuzz();toast(`Past the ${fmtMin(task.estimateMin)} budget for “${task.title}” — Finish anytime`);}
     }
   }else{
-    // STOPWATCH, no budget — counts up, showing the task's running total
     const shown=(task?(task.spentSec||0):0)+e;
-    digits.textContent=fmtClock(shown);
-    sub.textContent=!a?'Ready':(a.running?'Tracking':'Paused');
+    digits.textContent=fmtClock(shown);sub.textContent=!a?'Ready':(a.running?'Tracking':'Paused');
     ring.style.strokeDashoffset=C*(1-((shown%3600)/3600));ring.setAttribute('stroke','#4D7FD6');
   }
   if(a){start.textContent=a.running?'Pause':'Resume';fin.style.display='inline-block';}
   else{start.textContent='Start';fin.style.display='none';}
-  info.textContent=task?(task.estimateMin?`${task.title} — ${fmtMin(task.estimateMin)} budget, ${fmtMin(Math.round((task.spentSec||0)/60))} spent`:task.title):'';
-  if(!tick)tick=setInterval(()=>{if(AT())renderTimerView();},500);
+  info.textContent=task?(task.estimateMin?`${task.title} — ${fmtMin(task.estimateMin)} budget, ${fmtMin(Math.round((task.spentSec||0)/60))} logged`:task.title):'';
+  if(!tick)tick=setInterval(()=>{const x=AT();if(x&&x.running)renderTimerView();},500);
 }
 function tryBuzz(){if(navigator.vibrate)navigator.vibrate([200,100,200]);
   try{const c=new(window.AudioContext||window.webkitAudioContext)();const o=c.createOscillator(),g=c.createGain();
@@ -953,7 +939,7 @@ function showActions(kind,id,label){
 }
 function actDeleteTask(id){
   const i=S.tasks.findIndex(x=>x.id===id);if(i<0)return;
-  const t=S.tasks[i];S.tasks.splice(i,1);save();
+  const t=S.tasks[i];S.tasks.splice(i,1);delete S.timers[keyFor(t.id)];if(S.activeKey===keyFor(t.id))S.activeKey=null;save();
   if(t.gcalEventId)gcalDeleteEvent(t);
   closeSheet('actionSheet');renderTasks();renderCal();renderDayView();toast('Task deleted');
 }
