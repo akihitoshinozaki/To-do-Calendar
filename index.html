@@ -772,36 +772,50 @@ function renderTimerView(){
   const open=S.tasks.filter(t=>!t.done);
   sel.innerHTML=`<option value="">No task — just track time</option>`+open.map(t=>`<option value="${t.id}" ${(a&&a.taskId===t.id)||(!a&&pendingTimerTask===t.id)?'selected':''}>${esc(t.title)}${t.estimateMin?` (${fmtMin(t.estimateMin)})`:''}</option>`).join('');
   sel.disabled=false;
-  if(a){$('modeStopwatch').classList.toggle('on',a.mode==='stopwatch');$('modePomodoro').classList.toggle('on',a.mode==='pomodoro');}
   const e=a?elapsedSec():0;
-  const task=a&&a.taskId?S.tasks.find(x=>x.id===a.taskId):null;
-  if(!a){
-    digits.textContent=timerMode==='pomodoro'?fmtClock(S.settings.pomoWork*60):'00:00';
-    sub.textContent='Ready';ring.style.strokeDashoffset=C;ring.setAttribute('stroke','#4D7FD6');
-    start.textContent='Start';fin.style.display='none';info.textContent='';
-  }else{
-    if(a.mode==='pomodoro'){
+  // resolve the task being shown — active session OR a task queued via the ▶ / budget-circle
+  const curTaskId=a?a.taskId:pendingTimerTask;
+  const task=curTaskId?S.tasks.find(x=>x.id===curTaskId):null;
+  const mode=a?a.mode:timerMode;
+  $('modeStopwatch').classList.toggle('on',mode==='stopwatch');
+  $('modePomodoro').classList.toggle('on',mode==='pomodoro');
+  if(mode==='pomodoro'){
+    if(a){
       const p=pomoPhaseAt(e);
       digits.textContent=fmtClock(p.left);sub.textContent=(p.phase==='work'?'Focus':'Break')+` · round ${p.n}`;
-      const total=p.phase==='work'?S.settings.pomoWork*60:S.settings.pomoBreak*60;
-      ring.style.strokeDashoffset=C*(p.left/total);
+      const tot=p.phase==='work'?S.settings.pomoWork*60:S.settings.pomoBreak*60;
+      ring.style.strokeDashoffset=C*(p.left/tot);
       ring.setAttribute('stroke',p.phase==='work'?'#4D7FD6':'#4FAE85');
       if(p.left<1&&a.running&&a._buzzed!==p.n+p.phase){a._buzzed=p.n+p.phase;tryBuzz();}
-    }else if(task&&task.estimateMin){
-      const remain=task.estimateMin*60-(task.spentSec||0)-e;
-      digits.textContent=fmtClock(remain);
-      sub.textContent=remain>0?'Remaining':'Budget used up';
-      ring.style.strokeDashoffset=C*Math.max(0,remain/(task.estimateMin*60));
-      ring.setAttribute('stroke',remain>0?'#4D7FD6':'#D6904D');
-      if(remain<=0&&a.running&&!a._warned){a._warned=true;tryBuzz();toast(`Time's up on “${task.title}” — Finish to mark it done`);}
     }else{
-      const shown=(task?(task.spentSec||0):0)+e;   // banked + current segment
-      digits.textContent=fmtClock(shown);sub.textContent=a.running?'Tracking':'Paused';
-      ring.style.strokeDashoffset=C*(1-((shown%3600)/3600));
+      digits.textContent=fmtClock(S.settings.pomoWork*60);sub.textContent='Ready';
+      ring.style.strokeDashoffset=C;ring.setAttribute('stroke','#4D7FD6');
     }
-    start.textContent=a.running?'Pause':'Resume';fin.style.display='inline-block';
-    info.textContent=task?(task.estimateMin?`${task.title} — ${fmtMin(task.estimateMin)} budget, ${fmtMin(Math.round((task.spentSec||0)/60))} spent`:task.title):'';
+  }else if(task&&task.estimateMin){
+    // STOPWATCH on a budgeted task — always shows the budget counting down (even before Start)
+    const remain=task.estimateMin*60-(task.spentSec||0)-e;
+    if(remain>=0){
+      digits.textContent=fmtClock(remain);
+      sub.textContent=!a?'Budget remaining':(a.running?'Counting down':'Paused');
+      ring.style.strokeDashoffset=C*Math.min(1,remain/(task.estimateMin*60));
+      ring.setAttribute('stroke','#4D7FD6');
+    }else{
+      // past the budget — keep running, shown as overtime (you chose to go over)
+      digits.textContent='+'+fmtClock(-remain);
+      sub.textContent='Over budget';
+      ring.style.strokeDashoffset=0;ring.setAttribute('stroke','#D6904D');
+      if(a&&a.running&&!a._warned){a._warned=true;tryBuzz();toast(`Past the ${fmtMin(task.estimateMin)} budget for “${task.title}” — Finish anytime`);}
+    }
+  }else{
+    // STOPWATCH, no budget — counts up, showing the task's running total
+    const shown=(task?(task.spentSec||0):0)+e;
+    digits.textContent=fmtClock(shown);
+    sub.textContent=!a?'Ready':(a.running?'Tracking':'Paused');
+    ring.style.strokeDashoffset=C*(1-((shown%3600)/3600));ring.setAttribute('stroke','#4D7FD6');
   }
+  if(a){start.textContent=a.running?'Pause':'Resume';fin.style.display='inline-block';}
+  else{start.textContent='Start';fin.style.display='none';}
+  info.textContent=task?(task.estimateMin?`${task.title} — ${fmtMin(task.estimateMin)} budget, ${fmtMin(Math.round((task.spentSec||0)/60))} spent`:task.title):'';
   if(!tick)tick=setInterval(()=>{if(AT())renderTimerView();},500);
 }
 function tryBuzz(){if(navigator.vibrate)navigator.vibrate([200,100,200]);
