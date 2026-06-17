@@ -251,7 +251,7 @@ h2.sec{font-size:12.5px;font-weight:700;text-transform:uppercase;letter-spacing:
         </svg>
         <div id="bigTime"><div class="digits" id="digits">00:00</div><div class="sub" id="timerSub">Ready</div></div>
       </div>
-      <select id="timerTask" style="margin-top:8px"></select>
+      <select id="timerTask" style="margin-top:8px" onchange="switchTimerTask(this.value)"></select>
       <div class="small" id="taskBudgetInfo" style="margin-top:6px"></div>
       <div class="timerBtns">
         <button class="tbtn ghost" onclick="resetTimer()">Reset</button>
@@ -686,43 +686,68 @@ function deleteEditingEvent(){
 
 /* ================= TIMER ================= */
 let tick=null,timerMode='stopwatch',pendingTimerTask=null;
+function sessionWorkSec(a,e){
+  if(a.mode==='pomodoro'){const w=S.settings.pomoWork*60,b=S.settings.pomoBreak*60,cyc=w+b;
+    const full=Math.floor(e/cyc);return full*w+Math.min(e-full*cyc,w);}
+  return e;
+}
+function logSession(a,e,opts={}){
+  const workSec=Math.round(sessionWorkSec(a,e));
+  if(workSec>=10){
+    S.sessions.push({id:uid(),taskId:a.taskId||null,date:todayStr(),durSec:workSec,mode:a.mode,ts:Date.now()});
+    if(a.taskId){const t=S.tasks.find(x=>x.id===a.taskId);if(t)t.spentSec=(t.spentSec||0)+workSec;}
+    if(opts.toast)toast(`Logged ${fmtMin(Math.max(1,Math.round(workSec/60)))} of focus`);
+  }
+  return workSec;
+}
+// switch which task the timer is tracking — commits the old task's accrued time, keeps running state
+function switchTimerTask(newId){
+  newId=newId||null;
+  const a=AT();
+  if(!a){pendingTimerTask=newId;renderTimerView();return;}
+  if(a.taskId===newId)return;
+  logSession(a,elapsedSec());                 // bank time for the task we're leaving
+  S.activeTimer={mode:a.mode,taskId:newId,startTs:Date.now(),accumSec:0,running:a.running};
+  save();renderTasks();renderTimerView();
+}
 function openTimerFor(id){
   const a=AT();
-  if(a&&a.taskId&&a.taskId!==id){toast('Another session is in progress');switchView('timer');return;}
-  if(!a)pendingTimerTask=id;
+  if(a&&a.taskId!==id){logSession(a,elapsedSec());S.activeTimer=null;}  // bank & release the other task
+  if(!AT())pendingTimerTask=id;
   switchView('timer');
 }
 function AT(){return S.activeTimer;}
 function elapsedSec(){const a=AT();if(!a)return 0;return a.accumSec+(a.running?(Date.now()-a.startTs)/1000:0);}
 function setTimerMode(m){
   const a=AT();
-  if(a&&a.running){toast('Finish the current session first');return;}
-  if(a)S.activeTimer=null;
+  if(m===timerMode&&!a){return;}
+  if(a){
+    logSession(a,elapsedSec());           // bank time tracked so far
+    const keepTask=a.taskId,wasRunning=a.running;
+    S.activeTimer=wasRunning?{mode:m,taskId:keepTask,startTs:Date.now(),accumSec:0,running:true}:null;
+    if(!wasRunning)pendingTimerTask=keepTask;
+  }
   timerMode=m;save();
   $('modeStopwatch').classList.toggle('on',m==='stopwatch');
   $('modePomodoro').classList.toggle('on',m==='pomodoro');
-  renderTimerView();
+  renderTasks();renderTimerView();
 }
 function startTaskTimer(taskId){
-  const a=AT();
-  if(a&&a.running&&a.taskId!==taskId){toast('Another session is running — finish it first');switchView('timer');return;}
-  if(!a||a.taskId!==taskId)S.activeTimer={mode:timerMode,taskId,startTs:Date.now(),accumSec:0,running:true};
+  let a=AT();
+  if(a&&a.taskId!==taskId){logSession(a,elapsedSec());S.activeTimer=null;a=null;}
+  if(!a)S.activeTimer={mode:timerMode,taskId,startTs:Date.now(),accumSec:0,running:true};
   else if(!a.running){a.running=true;a.startTs=Date.now();}
-  save();switchView('timer');
+  pendingTimerTask=null;save();switchView('timer');
 }
 function toggleTimer(){
   let a=AT();
   if(!a){const taskId=$('timerTask').value||null;pendingTimerTask=null;
     S.activeTimer={mode:timerMode,taskId,startTs:Date.now(),accumSec:0,running:true};}
   else if(a.running){
-    a.accumSec=elapsedSec();a.running=false;
-    if(a.mode!=='pomodoro'&&a.taskId&&a.accumSec>=10){
-      const t=S.tasks.find(x=>x.id===a.taskId);
-      const sec=Math.round(a.accumSec);
-      S.sessions.push({id:uid(),taskId:a.taskId,date:todayStr(),durSec:sec,mode:a.mode,ts:Date.now()});
-      if(t)t.spentSec=(t.spentSec||0)+sec;
-      a.accumSec=0;
-    }
+    const e=elapsedSec();
+    if(a.mode!=='pomodoro'&&a.taskId){logSession(a,e);a.accumSec=0;}  // checkpoint stopwatch task time
+    else a.accumSec=e;                                                // pomodoro/no-task: just freeze
+    a.running=false;
   }
   else{a.startTs=Date.now();a.running=true;}
   save();renderTimerView();
@@ -732,17 +757,8 @@ function resetTimer(){const a=AT();if(!a)return;
   S.activeTimer=null;save();renderTimerView();}
 function finishSession(){
   const a=AT();if(!a)return;
-  let workSec;
-  if(a.mode==='pomodoro'){const w=S.settings.pomoWork*60,b=S.settings.pomoBreak*60,cyc=w+b,e=elapsedSec();
-    const full=Math.floor(e/cyc);workSec=full*w+Math.min(e-full*cyc,w);}
-  else workSec=elapsedSec();
-  workSec=Math.round(workSec);
   const t=a.taskId?S.tasks.find(x=>x.id===a.taskId):null;
-  if(workSec>=10){
-    S.sessions.push({id:uid(),taskId:a.taskId||null,date:todayStr(),durSec:workSec,mode:a.mode,ts:Date.now()});
-    if(t)t.spentSec=(t.spentSec||0)+workSec;
-    toast(`Logged ${fmtMin(Math.max(1,Math.round(workSec/60)))} of focus`);
-  }
+  logSession(a,elapsedSec(),{toast:true});
   S.activeTimer=null;save();renderTimerView();
   if(t&&t.estimateMin&&taskRemaining(t)<=0&&!t.done){
     if(confirm(`Time budget for “${t.title}” is used up. Mark it done?`)){t.done=true;t.doneAt=Date.now();save();gcalSyncTask(t);}
@@ -757,7 +773,7 @@ function renderTimerView(){
   const digits=$('digits'),sub=$('timerSub'),ring=$('ringProg'),start=$('btnStart'),fin=$('btnFinish'),sel=$('timerTask'),info=$('taskBudgetInfo');
   const open=S.tasks.filter(t=>!t.done);
   sel.innerHTML=`<option value="">No task — just track time</option>`+open.map(t=>`<option value="${t.id}" ${(a&&a.taskId===t.id)||(!a&&pendingTimerTask===t.id)?'selected':''}>${esc(t.title)}${t.estimateMin?` (${fmtMin(t.estimateMin)})`:''}</option>`).join('');
-  sel.disabled=!!a;
+  sel.disabled=false;
   if(a){$('modeStopwatch').classList.toggle('on',a.mode==='stopwatch');$('modePomodoro').classList.toggle('on',a.mode==='pomodoro');}
   const e=a?elapsedSec():0;
   const task=a&&a.taskId?S.tasks.find(x=>x.id===a.taskId):null;
