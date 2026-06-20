@@ -851,7 +851,7 @@ function studySecOn(d){
   return s;
 }
 function fmtH(sec){const m=Math.round(sec/60);if(m>=60){const h=Math.floor(m/60),mm=m%60;return h+'h'+(mm?' '+mm+'m':'');}return m+'m';}
-function openAnalytics(){openSheet('analyticsSheet');renderAnalytics();}
+function openAnalytics(){bankAllRunning();openSheet('analyticsSheet');renderAnalytics();}
 function renderAnalytics(){
   const ds=d=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
   const sess=S.sessions||[];
@@ -928,7 +928,7 @@ function renderCal(){
     const more=items.length>3?`<div class="evmore">+${items.length-3} more</div>`:'';
     const st=studySecOn(ds);
     return `<div class="day ${ds===todayStr()?'today':''}" onclick="openDaySheet('${ds}')">
-      <span class="num">${c.d}</span>${chips}${more}${st?`<span class="study">⏱ ${fmtMin(Math.round(st/60))}</span>`:''}</div>`;
+      <span class="num">${c.d}</span>${chips}${more}${st?`<span class="study">${fmtMin(Math.round(st/60))}</span>`:''}</div>`;
   }).join('');
   if(dayViewDate)renderDayView();
 }
