@@ -1300,8 +1300,15 @@ Respond with ONLY valid JSON, no prose, no markdown:
 function normPlan(obj){
   const blocks=(Array.isArray(obj.blocks)?obj.blocks:[]).filter(b=>b.start&&b.title).map(b=>({start:b.start,end:b.end||b.start,title:String(b.title)}));
   blocks.sort((a,b)=>a.start.localeCompare(b.start));
-  const unscheduled=(Array.isArray(obj.unscheduled)?obj.unscheduled:[]).map(u=>({title:String(u.title||''),reason:String(u.reason||'')})).filter(u=>u.title);
-  return {blocks,unscheduled,suggestion:obj.suggestion?String(obj.suggestion):null};
+  // only trust an "unscheduled" entry if it names a real, open task — drops model filler like
+  // "unschedulable time for other tasks" that some models invent even when everything fits
+  const norm=s=>String(s||'').toLowerCase().replace(/[^a-z0-9 ]/g,'').trim();
+  const openTitles=S.tasks.filter(t=>!t.done&&t.title).map(t=>norm(t.title)).filter(Boolean);
+  const matchesTask=title=>{const n=norm(title);if(!n)return false;return openTitles.some(ot=>ot&&(ot===n||ot.includes(n)||n.includes(ot)));};
+  const unscheduled=(Array.isArray(obj.unscheduled)?obj.unscheduled:[])
+    .map(u=>({title:String(u.title||''),reason:String(u.reason||'')}))
+    .filter(u=>u.title&&matchesTask(u.title));
+  return {blocks,unscheduled,suggestion:unscheduled.length?(obj.suggestion?String(obj.suggestion):null):null};
 }
 async function generatePlan(){
   const date=$('planDate').value||todayStr();
