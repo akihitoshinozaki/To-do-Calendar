@@ -732,21 +732,25 @@ function workElapsed(key){
   return e;
 }
 // total time on a task = logged spentSec + its live in-progress clock
-function taskTrackedSec(id){return (S.tasks.find(x=>x.id===id)?.spentSec||0)+workElapsed(keyFor(id));}
+function unbankedWork(key){const t=S.timers[key];if(!t)return 0;return Math.max(0,workElapsed(key)-(t.bankedWork||0));}
+function taskTrackedSec(id){return (S.tasks.find(x=>x.id===id)?.spentSec||0)+unbankedWork(keyFor(id));}
 function ensureTimer(taskId){const k=keyFor(taskId);
-  if(!S.timers[k])S.timers[k]={taskId:taskId||null,mode:timerMode,accumSec:0,startTs:Date.now(),running:false};
+  if(!S.timers[k])S.timers[k]={taskId:taskId||null,mode:timerMode,accumSec:0,startTs:Date.now(),running:false,bankedWork:0};
   return S.timers[k];}
-function pauseActive(){const a=AT();if(a&&a.running){a.accumSec=timerElapsed(S.activeKey);a.running=false;}}
-// deposit the work done in the current segment into the task's shared pool (spentSec)
-function bankWork(a,key,opts={}){
-  const wk=Math.round(workElapsed(key));
-  if(wk>=1){
-    S.sessions.push({id:uid(),taskId:a.taskId||null,date:todayStr(),durSec:wk,mode:a.mode,ts:Date.now()});
-    if(a.taskId){const t=S.tasks.find(x=>x.id===a.taskId);if(t)t.spentSec=(t.spentSec||0)+wk;}
-    if(opts.toast)toast(`Logged ${fmtMin(Math.max(1,Math.round(wk/60)))} of focus`);
+function pauseActive(){const a=AT();if(a&&a.running){bankTimer(S.activeKey);a.accumSec=timerElapsed(S.activeKey);a.running=false;}}
+// bank ONLY the new work since the last bank, dated now — never disturbs the live clock or pomodoro phase
+function bankTimer(key,opts={}){
+  const t=S.timers[key];if(!t)return 0;
+  const delta=Math.round(workElapsed(key)-(t.bankedWork||0));
+  if(delta>=1){
+    S.sessions.push({id:uid(),taskId:t.taskId||null,date:todayStr(),durSec:delta,mode:t.mode,ts:Date.now()});
+    if(t.taskId){const task=S.tasks.find(x=>x.id===t.taskId);if(task)task.spentSec=(task.spentSec||0)+delta;}
+    t.bankedWork=(t.bankedWork||0)+delta;
+    if(opts.toast)toast(`Logged ${fmtMin(Math.max(1,Math.round(delta/60)))} of focus`);
   }
-  return wk;
+  return delta;
 }
+function bankAllRunning(){let any=false;for(const k in S.timers){if(S.timers[k].running){bankTimer(k);any=true;}}if(any)save();}
 // open a task's clock without starting it (budget circle / ring tap)
 function openTimerFor(id){pauseActive();S.activeKey=keyFor(id);const t=ensureTimer(id);timerMode=t.mode;save();switchView('timer');}
 // open + start/resume (▶ on a card)
@@ -767,9 +771,8 @@ function switchTimerTask(newId){
 function setTimerMode(m){
   timerMode=m;const a=AT();
   if(a&&a.mode!==m){
-    pauseActive();
-    bankWork(a,S.activeKey);            // keep the work in the task's pool, don't reset it
-    a.mode=m;a.accumSec=0;a.startTs=Date.now();a._buzzed=null;a._warned=false;
+    pauseActive();                     // banks current work into the pool
+    a.mode=m;a.accumSec=0;a.bankedWork=0;a.startTs=Date.now();a._buzzed=null;a._warned=false;
   }
   $('modeStopwatch').classList.toggle('on',m==='stopwatch');
   $('modePomodoro').classList.toggle('on',m==='pomodoro');
@@ -778,7 +781,7 @@ function setTimerMode(m){
 function toggleTimer(){
   let a=AT();
   if(!a){const id=$('timerTask').value||null;S.activeKey=keyFor(id);a=ensureTimer(id);a.mode=timerMode;}
-  if(a.running){a.accumSec=timerElapsed(S.activeKey);a.running=false;}
+  if(a.running){bankTimer(S.activeKey);a.accumSec=timerElapsed(S.activeKey);a.running=false;}
   else{a.startTs=Date.now();a.running=true;}
   save();renderTimerView();
 }
@@ -790,7 +793,7 @@ function resetTimer(){
 function finishSession(){
   const a=AT();if(!a)return;
   const id=a.taskId,t=id?S.tasks.find(x=>x.id===id):null;
-  bankWork(a,S.activeKey,{toast:true});
+  bankTimer(S.activeKey,{toast:true});
   delete S.timers[S.activeKey];S.activeKey=null;save();renderTimerView();
   if(t&&t.estimateMin&&(t.estimateMin*60-(t.spentSec||0))<=0&&!t.done){
     if(confirm(`Time budget for “${t.title}” is used up. Mark it done?`)){t.done=true;t.doneAt=Date.now();save();gcalSyncTask(t);}
@@ -819,7 +822,7 @@ function renderTimerView(){
       if(p.left<1&&a.running&&a._buzzed!==p.n+p.phase){a._buzzed=p.n+p.phase;tryBuzz();}
     }else{digits.textContent=fmtClock(S.settings.pomoWork*60);sub.textContent='Ready';ring.style.strokeDashoffset=C;ring.setAttribute('stroke','#4D7FD6');}
   }else if(task&&task.estimateMin){
-    const remain=task.estimateMin*60-(task.spentSec||0)-e;
+    const remain=task.estimateMin*60-taskTrackedSec(task.id);
     if(remain>=0){
       digits.textContent=fmtClock(remain);
       sub.textContent=!a?'Budget remaining':(a.running?'Counting down':'Paused');
@@ -830,7 +833,7 @@ function renderTimerView(){
       if(a&&a.running&&!a._warned){a._warned=true;tryBuzz();toast(`Past the ${fmtMin(task.estimateMin)} budget for “${task.title}” — Finish anytime`);}
     }
   }else{
-    const shown=(task?(task.spentSec||0):0)+e;
+    const shown=task?taskTrackedSec(task.id):e;
     digits.textContent=fmtClock(shown);sub.textContent=!a?'Ready':(a.running?'Tracking':'Paused');
     ring.style.strokeDashoffset=C*(1-((shown%3600)/3600));ring.setAttribute('stroke','#4D7FD6');
   }
@@ -842,7 +845,11 @@ function renderTimerView(){
 function tryBuzz(){if(navigator.vibrate)navigator.vibrate([200,100,200]);
   try{const c=new(window.AudioContext||window.webkitAudioContext)();const o=c.createOscillator(),g=c.createGain();
   o.connect(g);g.connect(c.destination);o.frequency.value=880;g.gain.value=.07;o.start();setTimeout(()=>{o.stop();c.close();},350);}catch(e){}}
-function studySecOn(d){return S.sessions.filter(s=>s.date===d).reduce((a,s)=>a+s.durSec,0);}
+function studySecOn(d){
+  let s=S.sessions.filter(x=>x.date===d).reduce((a,x)=>a+x.durSec,0);
+  if(d===todayStr())for(const k in S.timers)s+=unbankedWork(k);   // count in-progress time toward today
+  return s;
+}
 function fmtH(sec){const m=Math.round(sec/60);if(m>=60){const h=Math.floor(m/60),mm=m%60;return h+'h'+(mm?' '+mm+'m':'');}return m+'m';}
 function openAnalytics(){openSheet('analyticsSheet');renderAnalytics();}
 function renderAnalytics(){
@@ -1484,6 +1491,13 @@ function init(){
     setTimeout(()=>clearInterval(wait),9000);
   }
   setInterval(()=>{if(dayViewDate===todayStr())renderDayView();},60000);
+  setInterval(bankAllRunning,20000);   // persist study time every 20s with the correct date
+  function suspendTimers(){let ch=false;for(const k in S.timers){const t=S.timers[k];if(t.running){bankTimer(k);t.accumSec=timerElapsed(k);t.running=false;t._autoPaused=true;ch=true;}}if(ch)save();}
+  document.addEventListener('visibilitychange',()=>{
+    if(document.hidden)suspendTimers();
+    else{let ch=false;for(const k in S.timers){const t=S.timers[k];if(t._autoPaused){t.running=true;t.startTs=Date.now();t._autoPaused=false;ch=true;}}if(ch){save();renderTimerView();renderTasks();renderCal();}}
+  });
+  window.addEventListener('pagehide',suspendTimers);
 }
 init();
 </script>
