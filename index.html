@@ -1268,10 +1268,17 @@ function extractJSON(out){
 function planContext(date){
   const open=S.tasks.filter(t=>!t.done&&(inRange(t,date)||(t.date&&(t.dateEnd||t.date)<date)||!t.date));
   const lines=open.map(t=>{
-    const ty=typeOf(t.typeId);const rem=t.estimateMin?Math.max(0,Math.round((t.estimateMin*60-(t.spentSec||0))/60)):null;
-    const tf=t.startTime&&!(t.dateEnd&&t.dateEnd!==t.date)?` (FIXED at ${t.startTime}${t.endTime?'–'+t.endTime:''})`:'';
-    return `- ${t.title}${ty?` [${ty.name}]`:''}${tf}${t.date&&(t.dateEnd||t.date)<date?' (overdue)':!t.date?' (someday)':''}${rem!=null?` — max ${rem}min (remaining budget, HARD CAP)`:''}`;
-  }).join('\n');
+    const ty=typeOf(t.typeId);
+    const fixedTime=t.startTime&&!(t.dateEnd&&t.dateEnd!==t.date);
+    // REMAINING budget = original budget minus time already tracked (incl. in-progress)
+    const rem=t.estimateMin?Math.max(0,Math.round((t.estimateMin*60-taskTrackedSec(t.id))/60)):null;
+    // a budgeted task with no time left has nothing to schedule (unless it is a fixed-time block)
+    if(t.estimateMin&&rem<=0&&!fixedTime)return null;
+    const tf=fixedTime?` (FIXED at ${t.startTime}${t.endTime?'–'+t.endTime:''})`:'';
+    const status=t.date&&(t.dateEnd||t.date)<date?' (overdue)':!t.date?' (someday)':'';
+    const budget=rem!=null?` — schedule at most ${rem}min (REMAINING budget, hard cap; do not use the original budget)`:'';
+    return `- ${t.title}${ty?` [${ty.name}]`:''}${tf}${status}${budget}`;
+  }).filter(Boolean).join('\n');
   const fixed=(gEvents[date]||[]).filter(e=>!e._tf&&e.start).map(e=>`- ${e.start}–${e.end||''}: ${e.summary}`).join('\n');
   const now=new Date();
   return `Date: ${date}${date===todayStr()?` (today, time now ${now.toTimeString().slice(0,5)})`:''}
