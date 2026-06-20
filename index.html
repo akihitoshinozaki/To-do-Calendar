@@ -711,6 +711,16 @@ function ensureTimer(taskId){const k=keyFor(taskId);
   if(!S.timers[k])S.timers[k]={taskId:taskId||null,mode:timerMode,accumSec:0,startTs:Date.now(),running:false};
   return S.timers[k];}
 function pauseActive(){const a=AT();if(a&&a.running){a.accumSec=timerElapsed(S.activeKey);a.running=false;}}
+// deposit the work done in the current segment into the task's shared pool (spentSec)
+function bankWork(a,key,opts={}){
+  const wk=Math.round(workElapsed(key));
+  if(wk>=1){
+    S.sessions.push({id:uid(),taskId:a.taskId||null,date:todayStr(),durSec:wk,mode:a.mode,ts:Date.now()});
+    if(a.taskId){const t=S.tasks.find(x=>x.id===a.taskId);if(t)t.spentSec=(t.spentSec||0)+wk;}
+    if(opts.toast)toast(`Logged ${fmtMin(Math.max(1,Math.round(wk/60)))} of focus`);
+  }
+  return wk;
+}
 // open a task's clock without starting it (budget circle / ring tap)
 function openTimerFor(id){pauseActive();S.activeKey=keyFor(id);const t=ensureTimer(id);timerMode=t.mode;save();switchView('timer');}
 // open + start/resume (▶ on a card)
@@ -730,10 +740,14 @@ function switchTimerTask(newId){
 }
 function setTimerMode(m){
   timerMode=m;const a=AT();
-  if(a){pauseActive();a.mode=m;a.accumSec=0;a.startTs=Date.now();a._buzzed=null;a._warned=false;}
+  if(a&&a.mode!==m){
+    pauseActive();
+    bankWork(a,S.activeKey);            // keep the work in the task's pool, don't reset it
+    a.mode=m;a.accumSec=0;a.startTs=Date.now();a._buzzed=null;a._warned=false;
+  }
   $('modeStopwatch').classList.toggle('on',m==='stopwatch');
   $('modePomodoro').classList.toggle('on',m==='pomodoro');
-  save();renderTimerView();
+  save();renderTasks();renderTimerView();
 }
 function toggleTimer(){
   let a=AT();
@@ -750,12 +764,7 @@ function resetTimer(){
 function finishSession(){
   const a=AT();if(!a)return;
   const id=a.taskId,t=id?S.tasks.find(x=>x.id===id):null;
-  const workSec=Math.round(workElapsed(S.activeKey));
-  if(workSec>=1){
-    S.sessions.push({id:uid(),taskId:id||null,date:todayStr(),durSec:workSec,mode:a.mode,ts:Date.now()});
-    if(t)t.spentSec=(t.spentSec||0)+workSec;
-    toast(`Logged ${fmtMin(Math.max(1,Math.round(workSec/60)))} of focus`);
-  }
+  bankWork(a,S.activeKey,{toast:true});
   delete S.timers[S.activeKey];S.activeKey=null;save();renderTimerView();
   if(t&&t.estimateMin&&(t.estimateMin*60-(t.spentSec||0))<=0&&!t.done){
     if(confirm(`Time budget for “${t.title}” is used up. Mark it done?`)){t.done=true;t.doneAt=Date.now();save();gcalSyncTask(t);}
