@@ -552,8 +552,8 @@ function renderTasks(){
   if(seg==='today'){
     const list=open.filter(t=>t.date&&t.date<=td&&td<=(t.dateEnd||t.date)).sort((a,b)=>(a.startTime||'99')<(b.startTime||'99')?-1:1);
     const overdue=open.filter(t=>t.date&&(t.dateEnd||t.date)<td);
-    if(overdue.length)html+=`<h2 class="sec" style="color:var(--warn)">Overdue</h2>`+overdue.map(taskRow).join('');
     html+=list.length?list.map(taskRow).join(''):`<div class="empty">Nothing for today. Tap + to add.</div>`;
+    if(overdue.length)html+=`<h2 class="sec" style="color:var(--warn)">Overdue</h2>`+overdue.map(taskRow).join('');
     const someday=open.filter(t=>!t.date);
     if(someday.length)html+=`<h2 class="sec">Someday</h2>`+someday.map(taskRow).join('');
   }else if(seg==='upcoming'){
