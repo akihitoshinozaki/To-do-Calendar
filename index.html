@@ -1297,18 +1297,77 @@ HARD RULES:
 Respond with ONLY valid JSON, no prose, no markdown:
 {"blocks":[{"start":"HH:MM","end":"HH:MM","title":"..."}],"unscheduled":[{"title":"...","reason":"..."}],"suggestion":"..."|null}
 24h times, blocks sorted by start.`;
-function normPlan(obj){
-  const blocks=(Array.isArray(obj.blocks)?obj.blocks:[]).filter(b=>b.start&&b.title).map(b=>({start:b.start,end:b.end||b.start,title:String(b.title)}));
-  blocks.sort((a,b)=>a.start.localeCompare(b.start));
-  // only trust an "unscheduled" entry if it names a real, open task — drops model filler like
-  // "unschedulable time for other tasks" that some models invent even when everything fits
-  const norm=s=>String(s||'').toLowerCase().replace(/[^a-z0-9 ]/g,'').trim();
-  const openTitles=S.tasks.filter(t=>!t.done&&t.title).map(t=>norm(t.title)).filter(Boolean);
-  const matchesTask=title=>{const n=norm(title);if(!n)return false;return openTitles.some(ot=>ot&&(ot===n||ot.includes(n)||n.includes(ot)));};
-  const unscheduled=(Array.isArray(obj.unscheduled)?obj.unscheduled:[])
-    .map(u=>({title:String(u.title||''),reason:String(u.reason||'')}))
-    .filter(u=>u.title&&matchesTask(u.title));
-  return {blocks,unscheduled,suggestion:unscheduled.length?(obj.suggestion?String(obj.suggestion):null):null};
+const minToHM=m=>String(Math.floor(m/60)%24).padStart(2,'0')+':'+String(Math.round(m%60)).padStart(2,'0');
+const normTitle=s=>String(s||'').toLowerCase().replace(/[^a-z0-9 ]/g,'').replace(/\s+/g,' ').trim();
+// tasks eligible for planning on a date, with EXACT remaining minutes
+function schedulableTasks(date){
+  return S.tasks.filter(t=>!t.done&&(inRange(t,date)||(t.date&&(t.dateEnd||t.date)<date)||!t.date)).map(t=>{
+    const fixed=t.startTime&&!(t.dateEnd&&t.dateEnd!==t.date)?{start:t.startTime,end:t.endTime}:null;
+    const remMin=t.estimateMin?Math.max(0,Math.round((t.estimateMin*60-taskTrackedSec(t.id))/60)):null;
+    return {id:t.id,title:t.title,norm:normTitle(t.title),remMin,fixed,
+            overdue:!!(t.date&&(t.dateEnd||t.date)<date)};
+  }).filter(t=>t.fixed||t.remMin===null||t.remMin>0);   // drop budget-exhausted, non-fixed tasks
+}
+function matchTaskByTitle(title,tasks){
+  const n=normTitle(title);if(!n)return null;
+  let best=null,bestScore=1e9;
+  for(const t of tasks){const tn=t.norm;if(!tn)continue;
+    if(tn===n||tn.includes(n)||n.includes(tn)){const sc=Math.abs(tn.length-n.length);if(sc<bestScore){bestScore=sc;best=t;}}}
+  return best;
+}
+// find the earliest start >= cursor that fits `dur` without hitting any obstacle, inside the window
+function placeAfter(cursor,dur,obstacles,winEnd){
+  let s=Math.max(0,cursor),guard=0;
+  const obs=obstacles.slice().sort((a,b)=>a.s-b.s);
+  while(guard++<500){
+    let bumped=false;
+    for(const o of obs){if(s<o.e&&s+dur>o.s){s=o.e;bumped=true;}}
+    if(s+dur>winEnd)return null;
+    if(!bumped)return {s,e:s+dur};
+  }
+  return null;
+}
+/* DETERMINISTIC layout: the model only suggests order/breaks; durations & placement are computed
+   here from each task's exact remaining budget, so a task ALWAYS gets its full remaining time. */
+function enforcePlan(rawBlocks,date,winStartHM,winEndHM){
+  const winStart=hmToMin(winStartHM),winEnd=hmToMin(winEndHM);
+  const tasks=schedulableTasks(date);
+  const obstacles=[];                              // hard blocks: real calendar events
+  (gEvents[date]||[]).filter(e=>!e._tf&&e.start).forEach(e=>{const s=hmToMin(e.start);let en=e.end?hmToMin(e.end):s+30;if(en<=s)en=s+30;obstacles.push({s,e:en});});
+  const out=[],placed=new Set(),unscheduled=[];
+  // 1) pin fixed-time tasks at their set times
+  tasks.filter(t=>t.fixed).forEach(t=>{
+    const s=hmToMin(t.fixed.start);let en=t.fixed.end?hmToMin(t.fixed.end):s+(t.remMin||30);if(en<=s)en=s+(t.remMin||30);
+    out.push({start:minToHM(s),end:minToHM(en),title:t.title});obstacles.push({s,e:en});placed.add(t.id);
+  });
+  // 2) turn the model's blocks into an ordered queue, with CORRECT durations
+  const queue=[];const raw=Array.isArray(rawBlocks)?rawBlocks:[];
+  raw.forEach(b=>{
+    const tk=matchTaskByTitle(b.title,tasks);
+    if(tk){if(placed.has(tk.id)||tk.fixed)return;placed.add(tk.id);
+      const dur=tk.remMin!=null?tk.remMin:Math.max(15,Math.round((hmToMin(b.end)-hmToMin(b.start))||30));
+      queue.push({title:tk.title,dur,req:b.start?hmToMin(b.start):null});
+    }else{
+      let dur=Math.round((hmToMin(b.end)-hmToMin(b.start))||10);if(!isFinite(dur)||dur<=0)dur=10;
+      queue.push({title:String(b.title||'Break'),dur:Math.max(5,dur),req:b.start?hmToMin(b.start):null,brk:true});
+    }
+  });
+  // 3) append any task the model forgot (overdue first), with its full remaining time
+  tasks.filter(t=>!t.fixed&&!placed.has(t.id)).sort((a,b)=>(b.overdue?1:0)-(a.overdue?1:0)).forEach(t=>{
+    placed.add(t.id);queue.push({title:t.title,dur:t.remMin!=null?t.remMin:30,req:null});
+  });
+  // 4) lay the queue out: requested start acts as an "earliest", everything packs & never overlaps
+  let cursor=winStart;
+  queue.forEach(item=>{
+    const desired=Math.max(item.req!=null?item.req:cursor,cursor,winStart);
+    const slot=placeAfter(desired,item.dur,obstacles,winEnd);
+    if(!slot){if(!item.brk)unscheduled.push({title:item.title,reason:`No room before ${winEndHM} for its remaining ${item.dur} min.`});return;}
+    out.push({start:minToHM(slot.s),end:minToHM(slot.e),title:item.title});
+    obstacles.push({s:slot.s,e:slot.e});cursor=slot.e;
+  });
+  out.sort((a,b)=>a.start.localeCompare(b.start));
+  const suggestion=unscheduled.length?'Move the leftover task(s) to another day or widen your time window.':null;
+  return {blocks:out,unscheduled,suggestion};
 }
 async function generatePlan(){
   const date=$('planDate').value||todayStr();
@@ -1319,7 +1378,8 @@ async function generatePlan(){
       {role:'system',content:PLAN_SYS},
       {role:'user',content:`Day window: ${w1}–${w2}\n`+planContext(date)}
     ]);
-    const p=normPlan(extractJSON(out));p.window={start:w1,end:w2};
+    let raw=[];try{raw=extractJSON(out).blocks||[];}catch(e){}
+    const p=enforcePlan(raw,date,w1,w2);p.window={start:w1,end:w2};
     S.plans[date]=p;save();renderPlan();renderCal();toast('Plan generated');
   }catch(e){toast(e.message);}
   btn.innerHTML='✦ Generate';btn.disabled=false;
@@ -1336,7 +1396,9 @@ async function revisePlan(){
       {role:'system',content:'Revise the day plan JSON according to the instruction, keeping all the HARD RULES of the original planner (budgets are hard caps, fixed events never overlapped, stay inside the window). Respond with ONLY valid JSON in the same format: {"blocks":[...],"unscheduled":[...],"suggestion":...}.'},
       {role:'user',content:`Window: ${p.window?p.window.start+'–'+p.window.end:'08:00–22:00'}\nCurrent plan:\n${JSON.stringify(p)}\n\nContext:\n${planContext(date)}\n\nInstruction: ${inst}`}
     ]);
-    const np=normPlan(extractJSON(out));np.window=p.window;
+    let raw=[];try{raw=extractJSON(out).blocks||[];}catch(e){}
+    const w=p.window||{start:'08:00',end:'22:00'};
+    const np=enforcePlan(raw,date,w.start,w.end);np.window=w;
     S.plans[date]=np;save();renderPlan();renderCal();
     $('reviseInput').value='';toast('Plan revised');
   }catch(e){toast(e.message);}
@@ -1506,12 +1568,16 @@ function init(){
   }
   setInterval(()=>{if(dayViewDate===todayStr())renderDayView();},60000);
   setInterval(bankAllRunning,20000);   // persist study time every 20s with the correct date
-  function suspendTimers(){let ch=false;for(const k in S.timers){const t=S.timers[k];if(t.running){bankTimer(k);t.accumSec=timerElapsed(k);t.running=false;t._autoPaused=true;ch=true;}}if(ch)save();}
+  // Keep timers RUNNING across screen-off / app-exit. iOS suspends JS in the background, but the
+  // clock is wall-clock based (startTs), so on return we just bank progress and the display catches up
+  // — exactly as if it had been counting the whole time.
+  function persistTimers(){let ch=false;for(const k in S.timers){if(S.timers[k].running){bankTimer(k);ch=true;}
+    if(S.timers[k]._autoPaused){S.timers[k].running=true;S.timers[k].startTs=Date.now();delete S.timers[k]._autoPaused;ch=true;}}if(ch)save();}
   document.addEventListener('visibilitychange',()=>{
-    if(document.hidden)suspendTimers();
-    else{let ch=false;for(const k in S.timers){const t=S.timers[k];if(t._autoPaused){t.running=true;t.startTs=Date.now();t._autoPaused=false;ch=true;}}if(ch){save();renderTimerView();renderTasks();renderCal();}}
+    persistTimers();
+    if(!document.hidden){renderTimerView();renderTasks();renderCal();}
   });
-  window.addEventListener('pagehide',suspendTimers);
+  window.addEventListener('pagehide',persistTimers);
 }
 init();
 </script>
