@@ -5,7 +5,1591 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
 <title>Flow — Tasks & Time</title>
 <meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<title>Flow — Tasks & Time</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Flow">
+<meta name="theme-color" content="#0B0F15">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon.png">
+<style>
+:root{
+  --bg:#0B0F15; --card:#151B24; --card2:#1C2430; --line:rgba(140,160,190,.13); --hair:rgba(140,160,190,.08);
+  --ink:#EDF1F7; --sub:#94A0B4; --faint:#5C687C;
+  --blue:#4D7FD6; --blue-soft:#27406B; --blue-tint:rgba(77,127,214,.16);
+  --ok:#4FAE85; --warn:#D6904D; --danger:#E0635F; --purple:#A06BD8;
+  --font:-apple-system,BlinkMacSystemFont,'SF Pro Display','Hiragino Sans','Hiragino Kaku Gothic ProN','Segoe UI',Roboto,sans-serif;
+  --sat:env(safe-area-inset-top,0px); --sab:env(safe-area-inset-bottom,0px);
+  --r:18px; --r-sm:12px; --spring:cubic-bezier(.32,1.25,.42,1);
+}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html{height:100%;height:-webkit-fill-available;background:var(--bg)}
+body{min-height:100%;min-height:100dvh;min-height:-webkit-fill-available;background:var(--bg);color:var(--ink);
+  font-family:var(--font);font-size:15px;line-height:1.45;-webkit-font-smoothing:antialiased;overscroll-behavior-y:none}
+button{font-family:inherit;border:none;background:none;color:inherit;cursor:pointer;font-size:inherit}
+input,select,textarea{font-family:inherit;font-size:16px;color:var(--ink);background:var(--card2);border:1px solid var(--line);border-radius:var(--r-sm);padding:11px 13px;width:100%;outline:none;-webkit-appearance:none}
+input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 0 3px var(--blue-tint)}
+::placeholder{color:var(--faint)}
+
+#app{max-width:560px;margin:0 auto;min-height:100dvh;min-height:-webkit-fill-available;display:flex;flex-direction:column}
+header{padding:calc(var(--sat) + 10px) 20px 6px;position:sticky;top:0;z-index:30;
+  background:linear-gradient(rgba(11,15,21,.96) 70%,rgba(11,15,21,0));backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px)}
+.h-row{display:flex;align-items:center;gap:10px}
+.h-row h1{font-size:30px;font-weight:800;letter-spacing:-.03em;flex:1}
+.h-row h1 i{color:var(--blue);font-style:normal}
+#headDate{font-size:13px;font-weight:600;color:var(--sub);text-transform:uppercase;letter-spacing:.06em;margin-bottom:-2px}
+#gearBtn{width:36px;height:36px;border-radius:50%;background:var(--card2);display:flex;align-items:center;justify-content:center;font-size:16px;color:var(--sub)}
+#gearBtn:active{transform:scale(.92)}
+main{flex:1;display:flex;flex-direction:column;padding:6px 16px calc(116px + var(--sab))}
+.view{display:none}
+.view.active{display:block;animation:viewIn .32s var(--spring)}
+.view.fill.active{display:flex;flex-direction:column;flex:1}
+@keyframes viewIn{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+h2.sec{font-size:12.5px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--sub);margin:20px 4px 8px}
+
+.segs{display:flex;background:#10151D;border:1px solid var(--hair);border-radius:12px;padding:3px;margin:8px 0 14px}
+.segs button{flex:1;padding:8px 2px;border-radius:9px;font-size:13px;font-weight:600;color:var(--sub);transition:color .2s}
+.segs button.on{color:var(--ink);background:var(--card2);box-shadow:0 2px 8px rgba(0,0,0,.4),inset 0 0 0 1px var(--line)}
+
+.card{background:var(--card);border:1px solid var(--hair);border-radius:var(--r);padding:14px 16px;margin-bottom:10px}
+.task{display:flex;align-items:center;gap:12px;background:var(--card);border:1px solid var(--hair);border-radius:var(--r);padding:13px 15px;margin-bottom:9px;transition:transform .15s var(--spring);animation:taskIn .3s var(--spring) backwards}
+.task:active{transform:scale(.985)}
+.task.done{opacity:.4}
+.task.done .t-title{text-decoration:line-through}
+.t-check{width:25px;height:25px;border-radius:50%;border:1.8px solid var(--faint);flex:none;display:flex;align-items:center;justify-content:center;font-size:12px;color:transparent;transition:all .2s var(--spring)}
+.task.done .t-check{background:var(--ok);border-color:var(--ok);color:#fff}
+.t-body{flex:1;min-width:0}
+.t-title{font-weight:600;font-size:15.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.t-meta{display:flex;gap:7px;align-items:center;font-size:12px;color:var(--sub);margin-top:2px;flex-wrap:wrap}
+.t-type{padding:1.5px 8px;border-radius:6px;font-size:10.5px;font-weight:700}
+.t-ring{flex:none;width:40px;height:40px;position:relative}
+.t-ring svg{transform:rotate(-90deg)}
+.t-ring .lbl{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:9.5px;font-weight:700;color:var(--sub)}
+.t-play{flex:none;width:36px;height:36px;border-radius:50%;background:var(--blue-tint);color:var(--blue);display:flex;align-items:center;justify-content:center;font-size:13px}
+.empty{color:var(--faint);text-align:center;padding:36px 10px;font-size:14px}
+.linkish{color:var(--blue);font-weight:600}
+.small{font-size:12.5px;color:var(--sub)}
+
+#tabbar{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:560px;z-index:40;
+  display:grid;grid-template-columns:1fr 1fr 80px 1fr 1fr;align-items:end;
+  background:rgba(15,20,28,.88);backdrop-filter:blur(24px) saturate(1.6);-webkit-backdrop-filter:blur(24px) saturate(1.6);
+  border-top:.5px solid var(--line);padding:8px 6px calc(6px + var(--sab))}
+.tab{display:flex;flex-direction:column;align-items:center;gap:3px;color:var(--faint);font-size:10px;padding:4px 0;font-weight:600;transition:color .2s}
+.tab svg{width:23px;height:23px;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.tab.active{color:var(--blue)}
+#fab{width:58px;height:58px;border-radius:50%;margin:0 auto;transform:translateY(-18px);
+  background:linear-gradient(145deg,#6395E6,#3C66B8);
+  box-shadow:0 8px 24px rgba(77,127,214,.35),0 2px 8px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.25);
+  display:flex;align-items:center;justify-content:center;font-size:30px;font-weight:300;color:#fff;transition:transform .2s var(--spring)}
+#fab:active{transform:translateY(-18px) scale(.88)}
+
+.chips{display:flex;flex-wrap:wrap;gap:7px}
+.chip{padding:8px 14px;border-radius:999px;border:1px solid var(--line);background:var(--card2);font-size:13px;font-weight:600;color:var(--sub);transition:all .15s}
+.chip.on{border-color:var(--blue);color:#fff;background:var(--blue-soft)}
+.chip:active{transform:scale(.95)}
+
+#view-timer.fill #timerWrap{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center}
+#bigRing{position:relative;width:252px;height:252px;margin:10px 0 4px}
+#bigRing svg{transform:rotate(-90deg)}
+#ringProg{transition:stroke-dashoffset .4s linear,stroke .3s}
+#bigTime{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px}
+#bigTime .digits{font-size:52px;font-weight:700;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+#bigTime .sub{font-size:12px;color:var(--sub);font-weight:700;text-transform:uppercase;letter-spacing:.12em}
+.timerBtns{display:flex;gap:12px;margin:16px 0}
+.tbtn{padding:14px 28px;border-radius:16px;font-weight:700;font-size:15px;transition:transform .15s var(--spring)}
+.tbtn:active{transform:scale(.94)}
+.tbtn.primary{background:var(--blue);color:#fff;box-shadow:0 4px 16px rgba(77,127,214,.3)}
+.tbtn.ghost{background:var(--card2);border:1px solid var(--line);color:var(--sub)}
+.tbtn.stop{background:var(--danger);color:#fff}
+
+#calHead{display:flex;align-items:center;justify-content:space-between;margin:4px 2px 8px}
+#calHead .m{font-size:19px;font-weight:700}
+#calHead .nav{display:flex;gap:4px}
+#calHead .nav button{width:34px;height:34px;border-radius:50%;background:var(--card2);color:var(--blue);font-size:17px}
+.dowRow{display:grid;grid-template-columns:repeat(7,1fr);margin-bottom:2px}
+.dow{text-align:center;font-size:10px;color:var(--faint);font-weight:700;padding:4px 0;text-transform:uppercase}
+#calGrid{display:grid;grid-template-columns:repeat(7,1fr);gap:3px}
+.day{min-height:82px;border-radius:10px;background:var(--card);border:1px solid transparent;padding:4px 3px;display:flex;flex-direction:column;gap:2px;overflow:hidden;transition:transform .12s}
+.day:active{transform:scale(.96)}
+.day.dim{opacity:.28}
+.day .num{font-size:12px;font-weight:600;color:var(--sub);padding-left:3px}
+.day.today .num{color:#fff;background:var(--blue);width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;padding:0;font-size:11px}
+.evchip{font-size:8.5px;font-weight:600;padding:1.5px 4px;border-radius:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.35}
+.evmore{font-size:8.5px;color:var(--faint);font-weight:700;padding-left:4px}
+.day .study{margin-top:auto;font-size:9px;color:var(--blue);font-weight:800;padding-left:3px;letter-spacing:-.02em}
+
+/* ----- day sheet (slides over month) ----- */
+#daySheet{position:fixed;left:50%;transform:translate(-50%,103%);bottom:0;width:100%;max-width:560px;height:91dvh;
+  background:#11161F;border-radius:24px 24px 0 0;border:.5px solid var(--line);border-bottom:none;z-index:55;
+  transition:transform .4s var(--spring);display:flex;flex-direction:column;overflow:hidden;touch-action:pan-y}
+#daySheet.show{transform:translate(-50%,0)}
+#daySheet .grab{width:38px;height:4.5px;border-radius:4px;background:var(--line);margin:10px auto 4px;flex:none}
+#dvScroll{flex:1;overflow-y:auto;padding:0 16px calc(20px + var(--sab));-webkit-overflow-scrolling:touch}
+#dvSticky{position:sticky;top:0;z-index:6;background:rgba(17,22,31,.94);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
+  padding:6px 0 8px;margin:0 -4px;border-bottom:.5px solid var(--hair)}
+#dvHead{display:flex;align-items:center;gap:10px;padding:0 4px}
+#dvHead .t{flex:1}
+#dvHead .t .d1{font-size:19px;font-weight:700}
+#dvHead .t .d2{font-size:12px;color:var(--sub);font-weight:600}
+#dvHead button{width:32px;height:32px;border-radius:50%;background:var(--card2);color:var(--blue);font-size:15px;flex:none}
+#allDayRow{padding:6px 4px 0}
+#allDayRow .evchip{display:inline-block;margin:0 4px 4px 0;font-size:11px;padding:4px 9px}
+#tl{position:relative;margin-top:4px}
+.hourRow{display:flex;height:52px;border-bottom:.5px solid var(--hair)}
+.hourLbl{width:46px;flex:none;font-size:10px;color:var(--faint);font-weight:600;transform:translateY(-6px);padding-left:4px}
+#tlBlocks{position:absolute;left:50px;right:4px;top:0;bottom:0}
+.blk{position:absolute;border-radius:8px;padding:3px 8px;font-size:11px;font-weight:600;overflow:hidden;border-left:3px solid;line-height:1.3;min-height:14px;user-select:none;-webkit-user-select:none}
+.blk .bt{font-size:9.5px;opacity:.75}
+.blk.plan{border-left-color:var(--purple);background:rgba(160,107,216,.14);color:#CBA8EE}
+#nowLine{position:absolute;left:46px;right:0;height:1.5px;background:var(--danger);z-index:5}
+#nowLine::before{content:'';position:absolute;left:-4px;top:-3px;width:8px;height:8px;border-radius:50%;background:var(--danger)}
+
+/* ----- plan ----- */
+.pblk{display:flex;gap:12px;background:var(--card);border:1px solid var(--hair);border-radius:14px;padding:11px 14px;margin-bottom:8px;align-items:center;animation:viewIn .3s var(--spring) backwards}
+.pblk .rail{width:4px;border-radius:4px;background:var(--purple);align-self:stretch;flex:none}
+.pblk .tm{font-size:11.5px;font-weight:700;color:var(--purple);font-variant-numeric:tabular-nums;flex:none;width:88px}
+.pblk .ti{font-size:14px;font-weight:600;flex:1}
+.planBtns{display:flex;gap:8px;margin:8px 0 12px;flex-wrap:wrap}
+.pbtn{padding:10px 15px;border-radius:13px;background:var(--card2);border:1px solid var(--line);font-size:13.5px;font-weight:600;color:var(--ink);transition:transform .15s var(--spring)}
+.pbtn:active{transform:scale(.95)}
+.pbtn.blue{background:var(--blue);border-color:transparent;color:#fff;box-shadow:0 3px 12px rgba(77,127,214,.3)}
+.pbtn.red{color:var(--danger)}
+#planRevise{display:flex;gap:8px;margin-top:12px}
+.pedit{display:flex;gap:6px;margin-bottom:7px;align-items:center}
+.pedit input.t1{width:78px;flex:none;padding:8px;font-size:13px;text-align:center}
+.pedit input.t2{flex:1;padding:8px 10px;font-size:13px}
+.pedit button{color:var(--danger);font-size:16px;padding:0 4px}
+.warnCard{background:rgba(214,144,77,.13);border:1px solid rgba(214,144,77,.4);border-radius:14px;padding:13px 15px;margin-top:10px;font-size:13.5px;color:#EBB686}
+.warnCard b{display:block;margin-bottom:4px;color:var(--warn)}
+.warnCard ul{margin:4px 0 6px 18px}
+#planWindow{display:flex;gap:8px;align-items:center;margin-bottom:10px}
+#planWindow input{text-align:center}
+#planWindow span{color:var(--faint);flex:none}
+
+/* ----- sheets ----- */
+#dim{position:fixed;inset:0;background:rgba(4,7,11,.65);backdrop-filter:blur(3px);z-index:50;opacity:0;pointer-events:none;transition:opacity .25s}
+#dim.show{opacity:1;pointer-events:auto}
+.sheet{position:fixed;left:50%;transform:translate(-50%,105%);bottom:0;width:100%;max-width:560px;background:#141A23;
+  border-radius:24px 24px 0 0;border:.5px solid var(--line);border-bottom:none;z-index:60;
+  padding:10px 20px calc(24px + var(--sab));transition:transform .38s var(--spring);max-height:90dvh;overflow-y:auto;-webkit-overflow-scrolling:touch}
+.sheet.show{transform:translate(-50%,0)}
+.sheet.dragging,#daySheet.dragging{transition:none}
+.sheet .grab{width:38px;height:4.5px;border-radius:4px;background:var(--line);margin:4px auto 14px}
+.sheet h3{font-size:19px;font-weight:700;margin-bottom:14px}
+.frow{margin-bottom:14px}
+.frow label{display:block;font-size:11.5px;font-weight:700;color:var(--sub);margin-bottom:7px;text-transform:uppercase;letter-spacing:.08em}
+.sheetBtns{display:flex;gap:10px;margin-top:18px}
+.sheetBtns .pbtn{flex:1;padding:14px;text-align:center;font-size:15.5px}
+.tfRow{display:flex;gap:8px;align-items:center}
+.tfRow input{text-align:center}
+.tfRow span{color:var(--faint);flex:none}
+.typeRow{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:.5px solid var(--hair)}
+.typeRow input[type=color]{width:36px;height:32px;padding:0;border:none;background:none;flex:none}
+.calChk{display:flex;align-items:center;gap:10px;padding:9px 0;font-size:14px;border-bottom:.5px solid var(--hair)}
+.calChk input{width:auto}
+.acctCard{background:var(--card2);border:1px solid var(--line);border-radius:14px;padding:12px 14px;margin-bottom:10px}
+.acctHead{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.acctHead .em{font-weight:700;font-size:14px;flex:1;overflow:hidden;text-overflow:ellipsis}
+.badge{font-size:10px;font-weight:700;padding:2px 8px;border-radius:99px;background:var(--blue-soft);color:var(--blue)}
+.badge.ro{background:var(--card);color:var(--sub)}
+.badge.err{background:rgba(224,99,95,.15);color:var(--danger)}
+
+#actionSheet{z-index:70}
+.actBtn{display:block;width:100%;padding:15px;text-align:center;font-size:16px;font-weight:600;border-radius:14px;background:var(--card2);margin-bottom:8px}
+.actBtn.danger{color:var(--danger)}
+#toast{position:fixed;left:50%;transform:translateX(-50%) translateY(8px);bottom:calc(122px + var(--sab));background:rgba(28,36,48,.95);backdrop-filter:blur(10px);border:.5px solid var(--line);
+  color:var(--ink);padding:11px 19px;border-radius:14px;font-size:13.5px;z-index:99;opacity:0;transition:all .3s var(--spring);pointer-events:none;max-width:86%;text-align:center;box-shadow:0 8px 30px rgba(0,0,0,.5)}
+#toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+.spin{display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,.25);border-top-color:#fff;border-radius:50%;animation:sp .9s linear infinite;vertical-align:-2px}
+@keyframes sp{to{transform:rotate(360deg)}}
+.pbtn.sm{padding:7px 12px;font-size:12.5px;border-radius:10px;color:var(--sub)}
+.pbtn.sm.red{color:var(--danger)}
+.iconBtn{width:34px;height:34px;border-radius:50%;background:var(--card2);display:flex;align-items:center;justify-content:center;font-size:14px;color:var(--sub)}
+.iconBtn:active{transform:scale(.88)}
+@keyframes taskIn{from{opacity:0;transform:translateY(10px) scale(.98)}to{opacity:1;transform:none}}
+@keyframes pop{0%{transform:scale(.5)}55%{transform:scale(1.18)}100%{transform:scale(1)}}
+.task.done .t-check{animation:pop .32s var(--spring)}
+#planWindow{flex-wrap:nowrap}
+#planWindow .twrap{position:relative;flex:1;min-width:0}
+#planWindow .twrap input{padding-right:30px}
+.miniReset{position:absolute;right:5px;top:50%;transform:translateY(-50%);font-size:13px;color:var(--faint);padding:4px}
+.miniReset:active{color:var(--blue)}
+.typeRow .ord{color:var(--faint);font-size:14px;padding:2px 5px}
+.typeRow .ord:active{color:var(--blue)}
+.pedit .okBtn{color:var(--ok);font-size:17px;padding:0 4px}
+/* analytics */
+.statGrid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:4px 0 16px}
+.stat{background:var(--card2);border:1px solid var(--line);border-radius:16px;padding:13px 15px}
+.stat .v{font-size:23px;font-weight:800;letter-spacing:-.02em;line-height:1.1}
+.stat .k{font-size:10.5px;color:var(--sub);font-weight:700;text-transform:uppercase;letter-spacing:.07em;margin-top:3px}
+.bars{display:flex;align-items:flex-end;gap:5px;height:140px;padding:8px 2px 0}
+.bars .bcol{flex:1;display:flex;flex-direction:column;align-items:center;gap:5px;height:100%;justify-content:flex-end}
+.bars .bv{font-size:8px;color:var(--sub);font-weight:700;height:10px}
+.bars .bar{width:100%;max-width:24px;border-radius:6px 6px 0 0;background:linear-gradient(180deg,#6395E6,#3C66B8);min-height:3px;animation:growBar .5s var(--spring) backwards}
+.bars .bar.today{background:linear-gradient(180deg,#7DAAF0,#4D7FD6);box-shadow:0 0 0 1.5px var(--blue)}
+.bars .bl{font-size:9px;color:var(--faint);font-weight:700}
+.bars .bl.today{color:var(--blue)}
+@keyframes growBar{from{height:0!important}}
+.typeBar{margin-bottom:11px}
+.typeBar .tt{display:flex;justify-content:space-between;align-items:center;font-size:13px;margin-bottom:5px;font-weight:600}
+.typeBar .tt .sub{color:var(--sub);font-weight:600;font-size:12px}
+.typeBar .track{height:9px;border-radius:6px;background:var(--card2);overflow:hidden}
+.typeBar .fill{height:100%;border-radius:6px;animation:growW .55s var(--spring) backwards}
+@keyframes growW{from{width:0!important}}
+@media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<div id="app">
+<header>
+  <div id="headDate"></div>
+  <div class="h-row"><h1 id="headTitle">Today<i>.</i></h1><button id="gearBtn" onclick="openSheet('settingsSheet')">⚙︎</button></div>
+</header>
+<main>
+
+  <section class="view fill active" id="view-tasks">
+    <div class="segs" id="taskSegs">
+      <button data-seg="today" class="on">Today</button>
+      <button data-seg="upcoming">Upcoming</button>
+      <button data-seg="bytype">By type</button>
+      <button data-seg="done">Done</button>
+    </div>
+    <div class="planBtns" style="margin:0 0 8px"><button class="pbtn sm" onclick="openSheet('importSheet')">📋 Paste a list</button></div>
+    <div id="taskList"></div>
+  </section>
+
+  <section class="view fill" id="view-timer">
+    <div class="segs">
+      <button id="modeStopwatch" class="on" onclick="setTimerMode('stopwatch')">Stopwatch</button>
+      <button id="modePomodoro" onclick="setTimerMode('pomodoro')">Pomodoro</button>
+    </div>
+    <div id="timerWrap">
+      <div id="bigRing">
+        <svg width="252" height="252" viewBox="0 0 252 252">
+          <circle cx="126" cy="126" r="114" stroke="rgba(140,160,190,.12)" stroke-width="9" fill="none"/>
+          <circle id="ringProg" cx="126" cy="126" r="114" stroke="#4D7FD6" stroke-width="9" fill="none"
+            stroke-linecap="round" stroke-dasharray="716.3" stroke-dashoffset="716.3"/>
+        </svg>
+        <div id="bigTime"><div class="digits" id="digits">00:00</div><div class="sub" id="timerSub">Ready</div></div>
+      </div>
+      <select id="timerTask" style="margin-top:8px" onchange="switchTimerTask(this.value)"></select>
+      <div class="small" id="taskBudgetInfo" style="margin-top:6px"></div>
+      <div class="timerBtns">
+        <button class="tbtn ghost" onclick="resetTimer()">Reset</button>
+        <button class="tbtn primary" id="btnStart" onclick="toggleTimer()">Start</button>
+        <button class="tbtn stop" id="btnFinish" onclick="finishSession()" style="display:none">Finish</button>
+      </div>
+    </div>
+  </section>
+
+  <section class="view" id="view-cal">
+    <div id="calHead">
+      <div class="m" id="calMonth"></div>
+      <div class="nav"><button class="iconBtn" onclick="openAnalytics()" title="Study analytics">📊</button><button class="iconBtn" onclick="document.getElementById('posterInput').click()" title="Scan a poster into the calendar">📷</button><button onclick="moveMonth(-1)">‹</button><button onclick="jumpToday()">•</button><button onclick="moveMonth(1)">›</button></div>
+    </div>
+    <div class="dowRow"><div class="dow">S</div><div class="dow">M</div><div class="dow">T</div><div class="dow">W</div><div class="dow">T</div><div class="dow">F</div><div class="dow">S</div></div>
+    <div id="calGrid"></div>
+  </section>
+
+  <section class="view" id="view-plan">
+    <div class="frow"><input type="date" id="planDate"></div>
+    <div id="planWindow">
+      <div class="twrap"><input type="time" id="planStart" value="08:00"><button class="miniReset" onclick="resetWin('start')">⟲</button></div>
+      <span>→</span>
+      <div class="twrap"><input type="time" id="planEnd" value="22:00"><button class="miniReset" onclick="resetWin('end')">⟲</button></div>
+      <button class="pbtn blue" id="genPlanBtn" onclick="generatePlan()">✦ Generate</button>
+    </div>
+    <div class="planBtns">
+      <button class="pbtn sm" id="editPlanBtn" onclick="togglePlanEdit()">Edit</button>
+      <button class="pbtn sm red" onclick="deletePlan()">Delete</button>
+    </div>
+    <input type="file" id="posterInput" accept="image/*" style="display:none" onchange="scanPoster(this)">
+    <div id="planBlocks"></div>
+    <div id="planWarn"></div>
+    <div id="planRevise">
+      <input id="reviseInput" placeholder="Tell AI what to change…">
+      <button class="pbtn blue" onclick="revisePlan()">Revise</button>
+    </div>
+  </section>
+
+</main>
+
+<nav id="tabbar">
+  <button class="tab active" data-view="tasks" onclick="switchView('tasks')">
+    <svg viewBox="0 0 24 24"><path d="M9 6h12M9 12h12M9 18h12M4 6l1 1 2-2M4 12l1 1 2-2M4 18l1 1 2-2"/></svg>Tasks</button>
+  <button class="tab" data-view="cal" onclick="switchView('cal')">
+    <svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M3 9.5h18M8 3v4M16 3v4"/></svg>Calendar</button>
+  <button id="fab" onclick="openAddSheet()">+</button>
+  <button class="tab" data-view="timer" onclick="switchView('timer')">
+    <svg viewBox="0 0 24 24"><circle cx="12" cy="13" r="8"/><path d="M12 9.5v3.5l2.5 2.5M9.5 2h5"/></svg>Timer</button>
+  <button class="tab" data-view="plan" onclick="switchView('plan')">
+    <svg viewBox="0 0 24 24"><path d="M12 3l1.7 4.6L18 9l-4.3 1.4L12 15l-1.7-4.6L6 9l4.3-1.4zM19 16l.8 2.2L22 19l-2.2.8L19 22l-.8-2.2L16 19l2.2-.8z"/></svg>Plan</button>
+</nav>
+
+<!-- DAY SHEET -->
+<div id="daySheet">
+  <div class="grab"></div>
+  <div id="dvScroll">
+    <div id="dvSticky">
+      <div id="dvHead">
+        <div class="t"><div class="d1" id="dvDate"></div><div class="d2" id="dvSub"></div></div>
+        <button onclick="moveDay(-1)">‹</button><button onclick="moveDay(1)">›</button>
+        <button onclick="openAddSheet(dayViewDate)" style="color:var(--ok)">＋</button>
+      </div>
+      <div id="allDayRow"></div>
+    </div>
+    <div id="tl"></div>
+  </div>
+</div>
+
+<div id="dim" onclick="dimTap()"></div>
+
+<!-- ADD / EDIT TASK -->
+<div class="sheet" id="addSheet">
+  <div class="grab"></div>
+  <h3 id="addTitle">New task</h3>
+  <div class="frow"><input id="aTitle" placeholder="What needs doing?"></div>
+  <div class="frow"><label>Type</label><div class="chips" id="aTypeChips"></div></div>
+  <div class="frow"><label>When</label>
+    <div class="chips">
+      <button class="chip on" id="whenToday" onclick="setWhen('today')">Today</button>
+      <button class="chip" id="whenDate" onclick="setWhen('date')">Pick date</button>
+      <button class="chip" id="whenRange" onclick="setWhen('range')">Multi-day</button>
+      <button class="chip" id="whenSomeday" onclick="setWhen('someday')">Someday</button>
+    </div>
+    <div class="tfRow" id="dateRow" style="margin-top:8px;display:none">
+      <input type="date" id="aDate"><span id="rangeArrow" style="display:none">→</span><input type="date" id="aDateEnd" style="display:none">
+    </div>
+  </div>
+  <div class="frow" id="tfWrap"><label>Time frame (optional — sets the budget)</label>
+    <div class="tfRow">
+      <input type="time" id="aStart"><span>→</span><input type="time" id="aEnd">
+      <button class="chip" onclick="clearTimeFrame()">Clear</button>
+    </div>
+    <div class="small" id="tfInfo" style="margin-top:6px"></div>
+  </div>
+  <div class="frow"><label>Or time budget only</label>
+    <div class="chips" id="aEstChips">
+      <button class="chip" data-min="15">15m</button>
+      <button class="chip" data-min="25">25m</button>
+      <button class="chip" data-min="45">45m</button>
+      <button class="chip" data-min="60">1h</button>
+      <button class="chip" data-min="90">1.5h</button>
+      <button class="chip" data-min="custom">Custom</button>
+    </div>
+    <input type="number" id="aEstCustom" placeholder="Minutes" style="margin-top:8px;display:none" min="1">
+  </div>
+  <div class="sheetBtns">
+    <button class="pbtn" id="aDeleteBtn" style="display:none;color:var(--danger)" onclick="deleteEditingTask()">Delete</button>
+    <button class="pbtn blue" onclick="saveTask()">Save task</button>
+  </div>
+</div>
+
+<!-- EVENT EDITOR -->
+<div class="sheet" id="eventSheet">
+  <div class="grab"></div>
+  <h3>Edit event</h3>
+  <div class="frow"><input id="eTitle" placeholder="Event name"></div>
+  <div class="frow"><label>Date</label><input type="date" id="eDate"></div>
+  <div class="frow"><label>Time</label><div class="tfRow"><input type="time" id="eStart"><span>→</span><input type="time" id="eEnd"></div></div>
+  <div class="frow"><label>Location</label><input id="eLoc" placeholder="Optional"></div>
+  <div class="sheetBtns">
+    <button class="pbtn" style="color:var(--danger)" onclick="deleteEditingEvent()">Delete</button>
+    <button class="pbtn blue" onclick="saveEvent()">Save</button>
+  </div>
+</div>
+
+<!-- IMPORT -->
+<div class="sheet" id="importSheet">
+  <div class="grab"></div>
+  <h3>Paste your to-dos</h3>
+  <p class="small" style="margin-bottom:10px">Paste any list — AI splits it into tasks with dates, times, and budgets. Without an API key, each line becomes a task for today.</p>
+  <textarea id="importText" rows="7" placeholder="e.g.&#10;- finish MATH 4242 pset by Friday&#10;- gym 6-7pm&#10;- email Brian about radar data (30 min)"></textarea>
+  <div class="sheetBtns"><button class="pbtn blue" id="importBtn" onclick="importTasks()">Add tasks</button></div>
+</div>
+
+<!-- ACTION MENU -->
+<div class="sheet" id="actionSheet">
+  <div class="grab"></div>
+  <h3 id="actTitle" style="font-size:15px;color:var(--sub)"></h3>
+  <div id="actBtns"></div>
+</div>
+
+<!-- SETTINGS -->
+<div class="sheet" id="settingsSheet">
+  <div class="grab"></div>
+  <h3>Settings</h3>
+  <h2 class="sec">Task types</h2>
+  <div id="typeManager"></div>
+  <button class="pbtn" style="margin-top:10px" onclick="addType()">+ Add type</button>
+  <h2 class="sec">Pomodoro</h2>
+  <div style="display:flex;gap:10px">
+    <div class="frow" style="flex:1"><label>Work (min)</label><input type="number" id="setPomoWork" min="1"></div>
+    <div class="frow" style="flex:1"><label>Break (min)</label><input type="number" id="setPomoBreak" min="1"></div>
+  </div>
+  <h2 class="sec">AI — OpenRouter</h2>
+  <div class="frow"><label>API key</label><input id="setOrKey" placeholder="sk-or-…" type="password"></div>
+  <div class="frow"><label>Model ID (openrouter.ai/models)</label><input id="setOrModel" placeholder="openai/gpt-4o-mini"></div>
+  <h2 class="sec">Google Calendar</h2>
+  <div class="frow"><label>OAuth Client ID</label><input id="setGClient" placeholder="…apps.googleusercontent.com"></div>
+  <div id="gAcctList"></div>
+  <button class="pbtn blue" onclick="googleConnect()">+ Connect a Google account</button>
+  <p class="small" style="margin-top:8px">The account marked <b>Main</b> is where tasks & scanned events are written. Others are view-only. Checkboxes choose which calendars show.</p>
+  <div class="sheetBtns"><button class="pbtn blue" onclick="saveSettings()">Save settings</button></div>
+</div>
+
+<!-- ANALYTICS -->
+<div class="sheet" id="analyticsSheet">
+  <div class="grab"></div>
+  <h3>Study analytics</h3>
+  <div id="anaBody"></div>
+</div>
+</div>
+<div id="toast"></div>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<script>
+/* ================= STATE ================= */
+const LS_KEY='flow_state_v1';
+const defaults={
+  tasks:[],sessions:[],events:[],plans:{},
+  types:[{id:'t1',name:'Study',color:'#4D7FD6'},{id:'t2',name:'Research',color:'#4FAE85'},{id:'t3',name:'Personal',color:'#D6904D'}],
+  settings:{pomoWork:25,pomoBreak:5,orKey:'',orModel:'openai/gpt-4o-mini',gClient:''},
+  gAccounts:[], gTokens:{}, timers:{}, activeKey:null
+};
+let S=load();
+function load(){
+  try{const raw=localStorage.getItem(LS_KEY);if(raw){const s=JSON.parse(raw);
+    const st=Object.assign({},defaults,s,{settings:Object.assign({},defaults.settings,s.settings||{})});
+    if(!Array.isArray(st.gAccounts))st.gAccounts=[];
+    if(!st.gTokens)st.gTokens={};
+    if(!st.timers)st.timers={};
+    if(st.activeKey===undefined)st.activeKey=null;
+    if(s.activeTimer&&Object.keys(st.timers).length===0){          // migrate v3/v4 single timer
+      const k=s.activeTimer.taskId||'__none';
+      st.timers[k]={taskId:s.activeTimer.taskId||null,mode:s.activeTimer.mode||'stopwatch',accumSec:s.activeTimer.accumSec||0,startTs:s.activeTimer.startTs||Date.now(),running:!!s.activeTimer.running};
+      st.activeKey=k;
+    }
+    delete st.activeTimer;
+    for(const k in st.plans){if(typeof st.plans[k]==='string')st.plans[k]={legacy:st.plans[k],blocks:[]};}
+    return st;}}catch(e){}
+  return JSON.parse(JSON.stringify(defaults));
+}
+function save(){try{localStorage.setItem(LS_KEY,JSON.stringify(S));}catch(e){toast('Could not save — storage unavailable');}}
+const $=id=>document.getElementById(id);
+const uid=()=>Math.random().toString(36).slice(2,10)+Date.now().toString(36);
+const todayStr=()=>{const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');};
+const fmtMin=m=>m>=60?(Math.floor(m/60)+'h'+(m%60?(m%60)+'m':'')):m+'m';
+const fmtClock=s=>{s=Math.max(0,Math.round(s));const h=Math.floor(s/3600),m=Math.floor(s%3600/60),x=s%60;return h>0?`${h}:${String(m).padStart(2,'0')}:${String(x).padStart(2,'0')}`:`${String(m).padStart(2,'0')}:${String(x).padStart(2,'0')}`;};
+const fmt12=hm=>{if(!hm)return'';let[h,m]=hm.split(':').map(Number);const ap=h>=12?'PM':'AM';h=h%12||12;return h+(m?':'+String(m).padStart(2,'0'):'')+ap;};
+const hmToMin=hm=>{if(!hm)return null;const[a,b]=hm.split(':').map(Number);return a*60+b;};
+const esc=t=>String(t??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const typeOf=id=>S.types.find(t=>t.id===id);
+const inRange=(t,ds)=>t.date&&ds>=t.date&&ds<=(t.dateEnd||t.date);
+function toast(m){const t=$('toast');t.textContent=m;t.classList.add('show');clearTimeout(t._h);t._h=setTimeout(()=>t.classList.remove('show'),2800);}
+
+/* ================= VIEWS & SHEETS ================= */
+const VIEW_TITLES={tasks:'Today',cal:'Calendar',timer:'Focus',plan:'Plan'};
+function switchView(v){
+  document.querySelectorAll('.view').forEach(x=>x.classList.remove('active'));
+  $('view-'+v).classList.add('active');
+  document.querySelectorAll('#tabbar .tab').forEach(x=>x.classList.toggle('active',x.dataset.view===v));
+  $('headTitle').innerHTML=VIEW_TITLES[v]+'<i>.</i>';
+  if(v==='tasks')renderTasks();if(v==='cal')renderCal();if(v==='timer')renderTimerView();if(v==='plan')renderPlan();
+}
+const TOP_SHEETS=['addSheet','eventSheet','importSheet','settingsSheet','actionSheet','analyticsSheet'];
+function refreshDim(){$('dim').classList.toggle('show',TOP_SHEETS.some(id=>$(id).classList.contains('show'))||$('daySheet').classList.contains('show'));}
+function openSheet(id){$(id).classList.add('show');refreshDim();if(id==='settingsSheet')renderSettings();}
+function closeSheet(id){$(id).classList.remove('show');refreshDim();}
+function dimTap(){
+  const open=TOP_SHEETS.filter(id=>$(id).classList.contains('show'));
+  if(open.length)open.forEach(closeSheet);
+  else closeDaySheet();
+}
+function closeSheets(){TOP_SHEETS.forEach(id=>$(id).classList.remove('show'));refreshDim();}
+
+/* ----- swipe-down-to-close (all sheets) + swipe-right (day sheet) ----- */
+function attachSheetGestures(el,{scrollEl=null,onClose,allowRight=false}={}){
+  let y0=0,x0=0,dy=0,dx=0,active=false,vertical=null;
+  const sc=()=>scrollEl?$(scrollEl):el;
+  el.addEventListener('touchstart',e=>{
+    y0=e.touches[0].clientY;x0=e.touches[0].clientX;dy=0;dx=0;active=true;vertical=null;
+  },{passive:true});
+  el.addEventListener('touchmove',e=>{
+    if(!active)return;
+    dy=e.touches[0].clientY-y0;dx=e.touches[0].clientX-x0;
+    if(vertical===null&&(Math.abs(dy)>8||Math.abs(dx)>8))vertical=Math.abs(dy)>=Math.abs(dx);
+    if(vertical===false&&allowRight){ if(dx>70){active=false;onClose();} return; }
+    if(vertical&&dy>0&&sc().scrollTop<=0){
+      e.preventDefault();
+      el.classList.add('dragging');
+      el.style.transform=`translate(-50%,${dy}px)`;
+    }
+  },{passive:false});
+  el.addEventListener('touchend',()=>{
+    if(!active)return;active=false;
+    el.classList.remove('dragging');
+    if(vertical&&dy>110&&sc().scrollTop<=0){el.style.transform='';onClose();}
+    else el.style.transform='';
+  });
+}
+
+/* ================= TASKS ================= */
+let seg='today',editingId=null,addWhen='today',addEst=null,selTypeId=null;
+$('taskSegs').addEventListener('click',e=>{
+  const b=e.target.closest('button');if(!b)return;
+  seg=b.dataset.seg;
+  document.querySelectorAll('#taskSegs button').forEach(x=>x.classList.toggle('on',x===b));
+  renderTasks();
+});
+function taskRemaining(t){if(!t.estimateMin)return null;return t.estimateMin*60-(t.spentSec||0);}
+function ringSVG(t){
+  if(!t.estimateMin)return'';
+  const spent=taskTrackedSec(t.id);
+  const frac=Math.min(1,spent/(t.estimateMin*60));
+  const C=2*Math.PI*16,off=C*(1-frac);
+  const col=frac>=1?'#D6904D':'#4D7FD6';
+  const rem=Math.max(0,Math.ceil((t.estimateMin*60-spent)/60));
+  return `<div class="t-ring" onclick="event.stopPropagation();openTimerFor('${t.id}')"><svg width="40" height="40" viewBox="0 0 40 40">
+    <circle cx="20" cy="20" r="16" stroke="rgba(140,160,190,.15)" stroke-width="3.5" fill="none"/>
+    <circle cx="20" cy="20" r="16" stroke="${col}" stroke-width="3.5" fill="none" stroke-linecap="round"
+      stroke-dasharray="${C.toFixed(1)}" stroke-dashoffset="${off.toFixed(1)}"/></svg><div class="lbl">${rem}m</div></div>`;
+}
+function taskRow(t,i=0){
+  const ty=typeOf(t.typeId);
+  let dateLbl=t.date?(t.date===todayStr()?'Today':t.date.slice(5).replace('-','/')):'Someday';
+  if(t.dateEnd&&t.dateEnd!==t.date)dateLbl+='–'+t.dateEnd.slice(5).replace('-','/');
+  const tf=t.startTime?` · ${fmt12(t.startTime)}${t.endTime?'–'+fmt12(t.endTime):''}`:'';
+  const spent=t.spentSec?` · ${fmtMin(Math.round(t.spentSec/60))} done`:'';
+  return `<div class="task ${t.done?'done':''}" style="animation-delay:${Math.min(i*35,350)}ms">
+    <button class="t-check" onclick="toggleDone('${t.id}')">✓</button>
+    <div class="t-body" onclick="openEditSheet('${t.id}')">
+      <div class="t-title">${esc(t.title)}</div>
+      <div class="t-meta">
+        ${ty?`<span class="t-type" style="background:${ty.color}26;color:${ty.color}">${esc(ty.name)}</span>`:''}
+        <span>${dateLbl}${tf}</span>
+        ${t.estimateMin?`<span>· ${fmtMin(t.estimateMin)}</span>`:`<span class="linkish">+ add time</span>`}<span>${spent}</span>
+      </div>
+    </div>
+    ${ringSVG(t)}
+    ${!t.done?`<button class="t-play" onclick="startTaskTimer('${t.id}')">▶</button>`:''}
+  </div>`;
+}
+function renderTasks(){
+  const el=$('taskList'),td=todayStr();
+  let html='';const open=S.tasks.filter(t=>!t.done);
+  if(seg==='today'){
+    const list=open.filter(t=>t.date&&t.date<=td&&td<=(t.dateEnd||t.date)).sort((a,b)=>(a.startTime||'99')<(b.startTime||'99')?-1:1);
+    const overdue=open.filter(t=>t.date&&(t.dateEnd||t.date)<td);
+    html+=list.length?list.map(taskRow).join(''):`<div class="empty">Nothing for today. Tap + to add.</div>`;
+    if(overdue.length)html+=`<h2 class="sec" style="color:var(--warn)">Overdue</h2>`+overdue.map(taskRow).join('');
+    const someday=open.filter(t=>!t.date);
+    if(someday.length)html+=`<h2 class="sec">Someday</h2>`+someday.map(taskRow).join('');
+  }else if(seg==='upcoming'){
+    const list=open.filter(t=>t.date&&t.date>td).sort((a,b)=>a.date.localeCompare(b.date));
+    html=list.length?list.map(taskRow).join(''):`<div class="empty">No upcoming tasks.</div>`;
+  }else if(seg==='bytype'){
+    for(const ty of S.types){
+      const list=open.filter(t=>t.typeId===ty.id);
+      html+=`<h2 class="sec" style="color:${ty.color}">${esc(ty.name)} — ${list.length} left</h2>`;
+      html+=list.length?list.map(taskRow).join(''):`<div class="empty" style="padding:8px">All clear ✓</div>`;
+    }
+    const un=open.filter(t=>!typeOf(t.typeId));
+    if(un.length)html+=`<h2 class="sec">No type — ${un.length} left</h2>`+un.map(taskRow).join('');
+  }else{
+    const list=S.tasks.filter(t=>t.done).sort((a,b)=>(b.doneAt||0)-(a.doneAt||0));
+    html=list.length?list.map(taskRow).join(''):`<div class="empty">Nothing done yet.</div>`;
+  }
+  el.innerHTML=html;
+}
+function toggleDone(id){const t=S.tasks.find(x=>x.id===id);if(!t)return;t.done=!t.done;t.doneAt=t.done?Date.now():null;save();renderTasks();gcalSyncTask(t);}
+
+/* ----- add/edit ----- */
+function setWhen(w){
+  addWhen=w;
+  ['Today','Date','Range','Someday'].forEach(k=>$('when'+k).classList.toggle('on',k.toLowerCase()===(w==='range'?'range':w)));
+  $('dateRow').style.display=(w==='date'||w==='range')?'flex':'none';
+  $('aDateEnd').style.display=w==='range'?'block':'none';
+  $('rangeArrow').style.display=w==='range'?'inline':'none';
+  $('tfWrap').style.opacity=w==='someday'?.4:1;
+}
+function tfChanged(){
+  const s=$('aStart').value,e=$('aEnd').value,info=$('tfInfo');
+  if(s&&e){let d=hmToMin(e)-hmToMin(s);if(d<=0)d+=1440;
+    info.textContent=`Budget set automatically: ${fmtMin(d)}`;
+    document.querySelectorAll('#aEstChips .chip').forEach(x=>x.classList.remove('on'));
+    $('aEstCustom').style.display='none';addEst=null;
+  }else info.textContent=s?'Add an end time to auto-set the budget':'';
+}
+$('aStart').addEventListener('change',tfChanged);
+$('aEnd').addEventListener('change',tfChanged);
+function clearTimeFrame(){$('aStart').value='';$('aEnd').value='';tfChanged();}
+$('aEstChips').addEventListener('click',e=>{
+  const b=e.target.closest('.chip');if(!b)return;
+  const was=b.classList.contains('on');
+  document.querySelectorAll('#aEstChips .chip').forEach(x=>x.classList.remove('on'));
+  $('aEstCustom').style.display='none';
+  if(was){addEst=null;return;}
+  b.classList.add('on');
+  if(b.dataset.min==='custom'){addEst='custom';$('aEstCustom').style.display='block';}
+  else addEst=parseInt(b.dataset.min);
+});
+function renderTypeChips(sel){$('aTypeChips').innerHTML=S.types.map(t=>
+  `<button class="chip ${t.id===sel?'on':''}" onclick="selType('${t.id}')" ${t.id===sel?`style="border-color:${t.color};background:${t.color}26;color:${t.color}"`:''}>${esc(t.name)}</button>`).join('')+
+  `<button class="chip" onclick="quickNewType()">+ New</button>`;}
+function selType(id){selTypeId=selTypeId===id?null:id;renderTypeChips(selTypeId);}
+function quickNewType(){const n=prompt('Type name:');if(!n)return;const t={id:uid(),name:n.trim(),color:'#'+['4D7FD6','4FAE85','D6904D','A06BD8','D65C8E','5CC7D6'][S.types.length%6]};S.types.push(t);save();selTypeId=t.id;renderTypeChips(selTypeId);}
+function openAddSheet(presetDate){
+  if(typeof presetDate!=='string')presetDate=null;
+  editingId=null;selTypeId=S.types[0]?.id||null;addEst=null;
+  $('addTitle').textContent='New task';
+  $('aTitle').value='';$('aDate').value=presetDate||todayStr();$('aDateEnd').value='';
+  $('aStart').value='';$('aEnd').value='';
+  $('aEstCustom').value='';$('aDeleteBtn').style.display='none';
+  document.querySelectorAll('#aEstChips .chip').forEach(x=>x.classList.remove('on'));
+  $('aEstCustom').style.display='none';$('tfInfo').textContent='';
+  setWhen(presetDate&&presetDate!==todayStr()?'date':'today');
+  renderTypeChips(selTypeId);openSheet('addSheet');
+}
+function openEditSheet(id){
+  const t=S.tasks.find(x=>x.id===id);if(!t)return;
+  editingId=id;selTypeId=t.typeId;addEst=null;
+  $('addTitle').textContent='Edit task';
+  $('aTitle').value=t.title;$('aDeleteBtn').style.display='block';
+  if(!t.date)setWhen('someday');
+  else if(t.dateEnd&&t.dateEnd!==t.date)setWhen('range');
+  else if(t.date===todayStr())setWhen('today');
+  else setWhen('date');
+  $('aDate').value=t.date||todayStr();$('aDateEnd').value=t.dateEnd||'';
+  $('aStart').value=t.startTime||'';$('aEnd').value=t.endTime||'';
+  const hasTF=t.startTime&&t.endTime;
+  document.querySelectorAll('#aEstChips .chip').forEach(x=>x.classList.toggle('on',!hasTF&&parseInt(x.dataset.min)===t.estimateMin));
+  const std=[15,25,45,60,90];
+  if(!hasTF&&t.estimateMin){addEst=t.estimateMin;
+    if(!std.includes(t.estimateMin)){document.querySelector('#aEstChips [data-min=custom]').classList.add('on');
+      $('aEstCustom').style.display='block';$('aEstCustom').value=t.estimateMin;addEst='custom';}
+    else $('aEstCustom').style.display='none';
+  }else $('aEstCustom').style.display='none';
+  tfChanged();renderTypeChips(selTypeId);openSheet('addSheet');
+}
+function saveTask(){
+  const title=$('aTitle').value.trim();
+  if(!title){toast('Give the task a name');return;}
+  const sT=$('aStart').value||null,eT=$('aEnd').value||null;
+  let est;
+  if(sT&&eT){let d=hmToMin(eT)-hmToMin(sT);if(d<=0)d+=1440;est=Math.round(d);}
+  else est=addEst==='custom'?parseInt($('aEstCustom').value)||null:addEst;
+  let date=null,dateEnd=null;
+  if(addWhen==='today')date=todayStr();
+  else if(addWhen==='date')date=$('aDate').value||todayStr();
+  else if(addWhen==='range'){
+    date=$('aDate').value||todayStr();
+    dateEnd=$('aDateEnd').value||date;
+    if(dateEnd<date)[date,dateEnd]=[dateEnd,date];
+    if(dateEnd===date)dateEnd=null;
+  }
+  let t;
+  if(editingId){t=S.tasks.find(x=>x.id===editingId);Object.assign(t,{title,typeId:selTypeId,date,dateEnd,estimateMin:est,startTime:date?sT:null,endTime:date?eT:null});}
+  else{t={id:uid(),title,typeId:selTypeId,date,dateEnd,startTime:date?sT:null,endTime:date?eT:null,estimateMin:est,spentSec:0,done:false,createdAt:Date.now()};S.tasks.push(t);}
+  save();closeSheet('addSheet');renderTasks();renderCal();if(dayViewDate)renderDayView();gcalSyncTask(t);
+  toast(editingId?'Task updated':'Task added');
+}
+function deleteEditingTask(){
+  const i=S.tasks.findIndex(x=>x.id===editingId);if(i<0)return;
+  const t=S.tasks[i];S.tasks.splice(i,1);delete S.timers[keyFor(t.id)];if(S.activeKey===keyFor(t.id))S.activeKey=null;save();closeSheet('addSheet');renderTasks();renderCal();if(dayViewDate)renderDayView();
+  if(t.gcalEventId)gcalDeleteEvent(t);toast('Task deleted');
+}
+/* ----- app event editor ----- */
+let editingEventId=null;
+function openEventSheet(id){
+  const e=S.events.find(x=>x.id===id);if(!e)return;
+  editingEventId=id;
+  $('eTitle').value=e.title;$('eDate').value=e.date;
+  $('eStart').value=e.startTime||'';$('eEnd').value=e.endTime||'';$('eLoc').value=e.location||'';
+  openSheet('eventSheet');
+}
+function saveEvent(){
+  const e=S.events.find(x=>x.id===editingEventId);if(!e)return;
+  e.title=$('eTitle').value.trim()||e.title;e.date=$('eDate').value||e.date;
+  e.startTime=$('eStart').value||null;e.endTime=$('eEnd').value||null;e.location=$('eLoc').value.trim()||null;
+  save();closeSheet('eventSheet');renderCal();if(dayViewDate)renderDayView();toast('Event updated');
+}
+function deleteEditingEvent(){
+  S.events=S.events.filter(x=>x.id!==editingEventId);
+  save();closeSheet('eventSheet');renderCal();if(dayViewDate)renderDayView();toast('Event deleted');
+}
+
+/* ================= TIMER — per-task clocks, nothing ever resets ================= */
+/* Each task gets its own persistent stopwatch in S.timers[key]; switching just
+   pauses one and shows another. Time folds into spentSec only on Finish. */
+let tick=null,timerMode='stopwatch';
+const NK='__none';
+const keyFor=id=>id||NK;
+function AT(){return S.activeKey?(S.timers[S.activeKey]||null):null;}
+function timerElapsed(key){const t=S.timers[key];if(!t)return 0;return t.accumSec+(t.running?(Date.now()-t.startTs)/1000:0);}
+function elapsedSec(){return S.activeKey?timerElapsed(S.activeKey):0;}
+function workElapsed(key){
+  const t=S.timers[key];if(!t)return 0;
+  const e=timerElapsed(key);
+  if(t.mode==='pomodoro'){const w=S.settings.pomoWork*60,b=S.settings.pomoBreak*60,cyc=w+b,full=Math.floor(e/cyc);return full*w+Math.min(e-full*cyc,w);}
+  return e;
+}
+// total time on a task = logged spentSec + its live in-progress clock
+function unbankedWork(key){const t=S.timers[key];if(!t)return 0;return Math.max(0,workElapsed(key)-(t.bankedWork||0));}
+function taskTrackedSec(id){return (S.tasks.find(x=>x.id===id)?.spentSec||0)+unbankedWork(keyFor(id));}
+function ensureTimer(taskId){const k=keyFor(taskId);
+  if(!S.timers[k])S.timers[k]={taskId:taskId||null,mode:timerMode,accumSec:0,startTs:Date.now(),running:false,bankedWork:0};
+  return S.timers[k];}
+function pauseActive(){const a=AT();if(a&&a.running){bankTimer(S.activeKey);a.accumSec=timerElapsed(S.activeKey);a.running=false;}}
+// bank ONLY the new work since the last bank, dated now — never disturbs the live clock or pomodoro phase
+function bankTimer(key,opts={}){
+  const t=S.timers[key];if(!t)return 0;
+  const delta=Math.round(workElapsed(key)-(t.bankedWork||0));
+  if(delta>=1){
+    S.sessions.push({id:uid(),taskId:t.taskId||null,date:todayStr(),durSec:delta,mode:t.mode,ts:Date.now()});
+    if(t.taskId){const task=S.tasks.find(x=>x.id===t.taskId);if(task)task.spentSec=(task.spentSec||0)+delta;}
+    t.bankedWork=(t.bankedWork||0)+delta;
+    if(opts.toast)toast(`Logged ${fmtMin(Math.max(1,Math.round(delta/60)))} of focus`);
+  }
+  return delta;
+}
+function bankAllRunning(){let any=false;for(const k in S.timers){if(S.timers[k].running){bankTimer(k);any=true;}}if(any)save();}
+// open a task's clock without starting it (budget circle / ring tap)
+function openTimerFor(id){pauseActive();S.activeKey=keyFor(id);const t=ensureTimer(id);timerMode=t.mode;save();switchView('timer');}
+// open + start/resume (▶ on a card)
+function startTaskTimer(taskId){
+  pauseActive();S.activeKey=keyFor(taskId);
+  const t=ensureTimer(taskId);timerMode=t.mode;
+  if(!t.running){t.running=true;t.startTs=Date.now();}
+  save();switchView('timer');
+}
+// dropdown switch — keeps running if the previous one was running
+function switchTimerTask(newId){
+  const wasRunning=AT()?AT().running:false;
+  pauseActive();S.activeKey=keyFor(newId);
+  const t=ensureTimer(newId);t.mode=timerMode;
+  if(wasRunning&&!t.running){t.running=true;t.startTs=Date.now();}
+  save();renderTasks();renderTimerView();
+}
+function setTimerMode(m){
+  timerMode=m;const a=AT();
+  if(a&&a.mode!==m){
+    pauseActive();                     // banks current work into the pool
+    a.mode=m;a.accumSec=0;a.bankedWork=0;a.startTs=Date.now();a._buzzed=null;a._warned=false;
+  }
+  $('modeStopwatch').classList.toggle('on',m==='stopwatch');
+  $('modePomodoro').classList.toggle('on',m==='pomodoro');
+  save();renderTasks();renderTimerView();
+}
+function toggleTimer(){
+  let a=AT();
+  if(!a){const id=$('timerTask').value||null;S.activeKey=keyFor(id);a=ensureTimer(id);a.mode=timerMode;}
+  if(a.running){bankTimer(S.activeKey);a.accumSec=timerElapsed(S.activeKey);a.running=false;}
+  else{a.startTs=Date.now();a.running=true;}
+  save();renderTimerView();
+}
+function resetTimer(){
+  const a=AT();if(!a)return;
+  if(timerElapsed(S.activeKey)>30&&!confirm("Clear this task's timer without logging it?"))return;
+  delete S.timers[S.activeKey];S.activeKey=null;save();renderTasks();renderTimerView();
+}
+function finishSession(){
+  const a=AT();if(!a)return;
+  const id=a.taskId,t=id?S.tasks.find(x=>x.id===id):null;
+  bankTimer(S.activeKey,{toast:true});
+  delete S.timers[S.activeKey];S.activeKey=null;save();renderTimerView();
+  if(t&&t.estimateMin&&(t.estimateMin*60-(t.spentSec||0))<=0&&!t.done){
+    if(confirm(`Time budget for “${t.title}” is used up. Mark it done?`)){t.done=true;t.doneAt=Date.now();save();gcalSyncTask(t);}
+  }
+  renderTasks();renderCal();
+}
+function pomoPhaseAt(e){const w=S.settings.pomoWork*60,b=S.settings.pomoBreak*60,cyc=w+b;const into=e%cyc,n=Math.floor(e/cyc)+1;return into<w?{phase:'work',left:w-into,n}:{phase:'break',left:cyc-into,n};}
+function renderTimerView(){
+  const a=AT(),C=716.3;
+  const digits=$('digits'),sub=$('timerSub'),ring=$('ringProg'),start=$('btnStart'),fin=$('btnFinish'),sel=$('timerTask'),info=$('taskBudgetInfo');
+  const open=S.tasks.filter(t=>!t.done);
+  const curId=a?a.taskId:null;
+  sel.innerHTML=`<option value="">No task — just track time</option>`+open.map(t=>`<option value="${t.id}" ${curId===t.id?'selected':''}>${esc(t.title)}${t.estimateMin?` (${fmtMin(t.estimateMin)})`:''}${S.timers[keyFor(t.id)]?' • in progress':''}</option>`).join('');
+  sel.disabled=false;
+  const e=a?timerElapsed(S.activeKey):0;
+  const task=curId?S.tasks.find(x=>x.id===curId):null;
+  const mode=a?a.mode:timerMode;
+  $('modeStopwatch').classList.toggle('on',mode==='stopwatch');
+  $('modePomodoro').classList.toggle('on',mode==='pomodoro');
+  if(mode==='pomodoro'){
+    if(a){
+      const p=pomoPhaseAt(e);
+      digits.textContent=fmtClock(p.left);sub.textContent=(p.phase==='work'?'Focus':'Break')+` · round ${p.n}`;
+      const tot=p.phase==='work'?S.settings.pomoWork*60:S.settings.pomoBreak*60;
+      ring.style.strokeDashoffset=C*(p.left/tot);ring.setAttribute('stroke',p.phase==='work'?'#4D7FD6':'#4FAE85');
+      if(p.left<1&&a.running&&a._buzzed!==p.n+p.phase){a._buzzed=p.n+p.phase;tryBuzz();}
+    }else{digits.textContent=fmtClock(S.settings.pomoWork*60);sub.textContent='Ready';ring.style.strokeDashoffset=C;ring.setAttribute('stroke','#4D7FD6');}
+  }else if(task&&task.estimateMin){
+    const remain=task.estimateMin*60-taskTrackedSec(task.id);
+    if(remain>=0){
+      digits.textContent=fmtClock(remain);
+      sub.textContent=!a?'Budget remaining':(a.running?'Counting down':'Paused');
+      ring.style.strokeDashoffset=C*Math.min(1,remain/(task.estimateMin*60));ring.setAttribute('stroke','#4D7FD6');
+    }else{
+      digits.textContent='+'+fmtClock(-remain);sub.textContent='Over budget';
+      ring.style.strokeDashoffset=0;ring.setAttribute('stroke','#D6904D');
+      if(a&&a.running&&!a._warned){a._warned=true;tryBuzz();toast(`Past the ${fmtMin(task.estimateMin)} budget for “${task.title}” — Finish anytime`);}
+    }
+  }else{
+    const shown=task?taskTrackedSec(task.id):e;
+    digits.textContent=fmtClock(shown);sub.textContent=!a?'Ready':(a.running?'Tracking':'Paused');
+    ring.style.strokeDashoffset=C*(1-((shown%3600)/3600));ring.setAttribute('stroke','#4D7FD6');
+  }
+  if(a){start.textContent=a.running?'Pause':'Resume';fin.style.display='inline-block';}
+  else{start.textContent='Start';fin.style.display='none';}
+  info.textContent=task?(task.estimateMin?`${task.title} — ${fmtMin(task.estimateMin)} budget, ${fmtMin(Math.round((task.spentSec||0)/60))} logged`:task.title):'';
+  if(!tick)tick=setInterval(()=>{const x=AT();if(x&&x.running)renderTimerView();},500);
+}
+function tryBuzz(){if(navigator.vibrate)navigator.vibrate([200,100,200]);
+  try{const c=new(window.AudioContext||window.webkitAudioContext)();const o=c.createOscillator(),g=c.createGain();
+  o.connect(g);g.connect(c.destination);o.frequency.value=880;g.gain.value=.07;o.start();setTimeout(()=>{o.stop();c.close();},350);}catch(e){}}
+function studySecOn(d){
+  let s=S.sessions.filter(x=>x.date===d).reduce((a,x)=>a+x.durSec,0);
+  if(d===todayStr())for(const k in S.timers)s+=unbankedWork(k);   // count in-progress time toward today
+  return s;
+}
+function fmtH(sec){const m=Math.round(sec/60);if(m>=60){const h=Math.floor(m/60),mm=m%60;return h+'h'+(mm?' '+mm+'m':'');}return m+'m';}
+function openAnalytics(){bankAllRunning();openSheet('analyticsSheet');renderAnalytics();}
+function renderAnalytics(){
+  const ds=d=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+  const sess=S.sessions||[];
+  const el=$('anaBody');
+  if(!sess.length){el.innerHTML=`<div class="empty card">No study time logged yet. Run a timer on a task and press Finish to log focus time.</div>`;return;}
+  const today=new Date();
+  const total=sess.reduce((a,s)=>a+s.durSec,0);
+  const wkStart=new Date(today);wkStart.setDate(today.getDate()-6);
+  const weekSec=sess.filter(s=>s.date>=ds(wkStart)).reduce((a,s)=>a+s.durSec,0);
+  const mKey=ds(today).slice(0,7);
+  const monthSec=sess.filter(s=>s.date.slice(0,7)===mKey).reduce((a,s)=>a+s.durSec,0);
+  const daysStudied=new Set(sess.filter(s=>s.durSec>0).map(s=>s.date));
+  const avg=daysStudied.size?total/daysStudied.size:0;
+  let streak=0;{let d=new Date(today);while(daysStudied.has(ds(d))){streak++;d.setDate(d.getDate()-1);}}
+  // last 14 days
+  const bars=[];for(let i=13;i>=0;i--){const d=new Date(today);d.setDate(today.getDate()-i);const key=ds(d);
+    bars.push({label:d.toLocaleDateString('en',{weekday:'narrow'}),sec:sess.filter(s=>s.date===key).reduce((a,s)=>a+s.durSec,0),today:i===0});}
+  const maxSec=Math.max(1,...bars.map(b=>b.sec));
+  const barsHtml=bars.map((b,i)=>`<div class="bcol">
+    <div class="bv">${b.sec?Math.round(b.sec/60):''}</div>
+    <div class="bar ${b.today?'today':''}" style="height:${Math.round(b.sec/maxSec*100)}%;animation-delay:${i*25}ms"></div>
+    <div class="bl ${b.today?'today':''}">${b.label}</div></div>`).join('');
+  // by type
+  const byType={};sess.forEach(s=>{const t=s.taskId?S.tasks.find(x=>x.id===s.taskId):null;const ty=t?typeOf(t.typeId):null;const k=ty?ty.id:'__none';byType[k]=(byType[k]||0)+s.durSec;});
+  const rows=Object.entries(byType).sort((a,b)=>b[1]-a[1]).map(([k,sec])=>{const ty=typeOf(k);return{name:ty?ty.name:'Other / no type',color:ty?ty.color:'#8E9BB0',sec};});
+  const typeMax=Math.max(1,...rows.map(r=>r.sec));
+  const typeHtml=rows.map((r,i)=>`<div class="typeBar">
+    <div class="tt"><span>${esc(r.name)}</span><span class="sub">${fmtH(r.sec)} · ${Math.round(r.sec/total*100)}%</span></div>
+    <div class="track"><div class="fill" style="width:${Math.round(r.sec/typeMax*100)}%;background:${r.color};animation-delay:${i*40}ms"></div></div></div>`).join('');
+  el.innerHTML=`
+    <div class="statGrid">
+      <div class="stat"><div class="v">${fmtH(weekSec)}</div><div class="k">This week</div></div>
+      <div class="stat"><div class="v">${fmtH(monthSec)}</div><div class="k">This month</div></div>
+      <div class="stat"><div class="v">${fmtH(avg)}</div><div class="k">Avg / study day</div></div>
+      <div class="stat"><div class="v">${streak}<span style="font-size:14px;font-weight:700"> day${streak===1?'':'s'}</span></div><div class="k">Current streak</div></div>
+    </div>
+    <h2 class="sec">Last 14 days <span style="text-transform:none;letter-spacing:0;color:var(--faint)">· minutes</span></h2>
+    <div class="bars">${barsHtml}</div>
+    <h2 class="sec">By type</h2>
+    ${typeHtml||'<div class="empty">No typed study time yet.</div>'}
+    <h2 class="sec">All time</h2>
+    <div class="stat" style="margin-bottom:4px"><div class="v">${fmtH(total)}</div><div class="k">across ${daysStudied.size} day${daysStudied.size===1?'':'s'}</div></div>`;
+}
+
+/* ================= MONTH CALENDAR ================= */
+let calCursor=new Date();calCursor.setDate(1);
+let dayViewDate=null;
+function moveMonth(d){calCursor.setMonth(calCursor.getMonth()+d);renderCal();fetchGEventsForMonth();}
+function jumpToday(){calCursor=new Date();calCursor.setDate(1);renderCal();fetchGEventsForMonth();}
+function dateStrOf(y,m,d){return y+'-'+String(m+1).padStart(2,'0')+'-'+String(d).padStart(2,'0');}
+function dayItems(ds){
+  const items=[];
+  S.tasks.filter(t=>inRange(t,ds)).forEach(t=>{const ty=typeOf(t.typeId);
+    const multi=t.dateEnd&&t.dateEnd!==t.date;
+    items.push({kind:'task',title:t.title,start:multi?null:t.startTime,end:multi?null:t.endTime,col:ty?ty.color:'#8E9BB0',done:t.done,id:t.id,allDay:multi});});
+  S.events.filter(e=>e.date===ds).forEach(e=>items.push({kind:'event',title:e.title,start:e.startTime,end:e.endTime,col:'#A06BD8',loc:e.location,id:e.id}));
+  (gEvents[ds]||[]).forEach(e=>{if(e._tf)return;items.push({kind:'gev',title:e.summary||'(untitled)',start:e.start,end:e.end,col:e.col,loc:e.location,allDay:e.allDay});});
+  return items;
+}
+function renderCal(){
+  const y=calCursor.getFullYear(),m=calCursor.getMonth();
+  $('calMonth').textContent=calCursor.toLocaleString('en',{month:'long',year:'numeric'});
+  const first=new Date(y,m,1).getDay(),days=new Date(y,m+1,0).getDate(),prevDays=new Date(y,m,0).getDate();
+  const cells=[];
+  for(let i=first-1;i>=0;i--)cells.push({d:prevDays-i,dim:true});
+  for(let d=1;d<=days;d++)cells.push({d,dim:false});
+  let nd=1;while(cells.length%7)cells.push({d:nd++,dim:true});
+  $('calGrid').innerHTML=cells.map(c=>{
+    if(c.dim)return `<div class="day dim"><span class="num">${c.d}</span></div>`;
+    const ds=dateStrOf(y,m,c.d);
+    const items=dayItems(ds).filter(i=>!(i.kind==='task'&&i.done));
+    items.sort((a,b)=>(a.start||'99')<(b.start||'99')?-1:1);
+    const chips=items.slice(0,3).map(i=>`<div class="evchip" style="background:${i.col}26;color:${i.col}">${i.start?fmt12(i.start)+' ':''}${esc(i.title)}</div>`).join('');
+    const more=items.length>3?`<div class="evmore">+${items.length-3} more</div>`:'';
+    const st=studySecOn(ds);
+    return `<div class="day ${ds===todayStr()?'today':''}" onclick="openDaySheet('${ds}')">
+      <span class="num">${c.d}</span>${chips}${more}${st?`<span class="study">${fmtMin(Math.round(st/60))}</span>`:''}</div>`;
+  }).join('');
+  if(dayViewDate)renderDayView();
+}
+
+/* ================= DAY SHEET ================= */
+const HOUR_H=52;
+function openDaySheet(ds){dayViewDate=ds;renderDayView();$('daySheet').classList.add('show');refreshDim();
+  setTimeout(()=>{const n=document.getElementById('nowLine');if(n)$('dvScroll').scrollTop=Math.max(0,n.offsetTop-180);},80);}
+function closeDaySheet(){dayViewDate=null;$('daySheet').classList.remove('show');refreshDim();}
+function moveDay(d){const dt=new Date(dayViewDate+'T12:00');dt.setDate(dt.getDate()+d);
+  dayViewDate=dateStrOf(dt.getFullYear(),dt.getMonth(),dt.getDate());
+  if(dt.getMonth()!==calCursor.getMonth()||dt.getFullYear()!==calCursor.getFullYear()){calCursor=new Date(dt.getFullYear(),dt.getMonth(),1);renderCal();fetchGEventsForMonth();}
+  renderDayView();}
+function layoutLanes(blocks){
+  blocks.sort((a,b)=>a.s-b.s);
+  const lanes=[];
+  blocks.forEach(b=>{let l=0;while(lanes[l]&&lanes[l]>b.s)l++;lanes[l]=b.e;b.lane=l;});
+  const maxL=Math.max(0,...blocks.map(b=>b.lane));
+  blocks.forEach(b=>b.lanes=maxL+1);
+  return blocks;
+}
+function renderDayView(){
+  const ds=dayViewDate;if(!ds)return;
+  const dt=new Date(ds+'T12:00');
+  $('dvDate').textContent=dt.toLocaleDateString('en',{weekday:'long',month:'long',day:'numeric'});
+  const st=studySecOn(ds);
+  $('dvSub').textContent=(ds===todayStr()?'Today':'')+(st?` · ${fmtMin(Math.round(st/60))} studied`:'');
+  const items=dayItems(ds);
+  const plan=S.plans[ds];
+  const allday=items.filter(i=>!i.start||i.allDay);
+  $('allDayRow').innerHTML=allday.map(i=>
+    `<div class="evchip lp" data-kind="${i.kind}" data-id="${i.id||''}" style="background:${i.col}26;color:${i.col};${i.done?'opacity:.4;text-decoration:line-through':''}">${esc(i.title)}</div>`).join('');
+  let hours='';
+  for(let h=0;h<24;h++)hours+=`<div class="hourRow"><div class="hourLbl">${h===0?'':(h%12||12)+(h<12?' AM':' PM')}</div></div>`;
+  const timed=[];
+  items.filter(i=>i.start&&!i.allDay).forEach(i=>{
+    const s=hmToMin(i.start);let e2=i.end?hmToMin(i.end):s+45;if(e2<=s)e2=s+45;
+    timed.push({s,e:e2,title:i.title,col:i.col,kind:i.kind,id:i.id,sub:fmt12(i.start)+(i.end?'–'+fmt12(i.end):''),done:i.done});
+  });
+  if(plan&&plan.blocks)plan.blocks.forEach(b=>{
+    const s=hmToMin(b.start),e2=hmToMin(b.end)||s+30;if(s==null)return;
+    timed.push({s,e:Math.max(e2,s+15),title:b.title,kind:'plan',sub:fmt12(b.start)+'–'+fmt12(b.end)});
+  });
+  layoutLanes(timed);
+  const blocksHtml=timed.map(b=>{
+    const top=b.s/60*HOUR_H,h=Math.max(16,(b.e-b.s)/60*HOUR_H-2);
+    const w=100/b.lanes,left=b.lane*w;
+    const style=b.kind==='plan'?'':`background:${b.col}24;color:${b.col};border-left-color:${b.col};`;
+    return `<div class="blk lp ${b.kind==='plan'?'plan':''}" data-kind="${b.kind}" data-id="${b.id||''}" data-title="${esc(b.title)}"
+      style="top:${top}px;height:${h}px;left:${left}%;width:calc(${w}% - 3px);${style}${b.done?'opacity:.4;':''}">
+      ${esc(b.title)}${h>30?`<div class="bt">${b.sub}</div>`:''}</div>`;
+  }).join('');
+  let nowLine='';
+  if(ds===todayStr()){const n=new Date();const min=n.getHours()*60+n.getMinutes();
+    nowLine=`<div id="nowLine" style="top:${min/60*HOUR_H}px"></div>`;}
+  $('tl').innerHTML=hours+`<div id="tlBlocks">${blocksHtml}</div>`+nowLine;
+}
+
+/* ----- long-press on day items ----- */
+let lpTimer=null,lpMoved=false;
+document.addEventListener('touchstart',e=>{
+  const el=e.target.closest('.lp');if(!el)return;
+  lpMoved=false;
+  lpTimer=setTimeout(()=>{if(!lpMoved)showActions(el.dataset.kind,el.dataset.id,el.dataset.title||el.textContent.trim());},480);
+},{passive:true});
+document.addEventListener('touchmove',()=>{lpMoved=true;clearTimeout(lpTimer);},{passive:true});
+document.addEventListener('touchend',()=>clearTimeout(lpTimer),{passive:true});
+document.addEventListener('contextmenu',e=>{const el=e.target.closest('.lp');if(el){e.preventDefault();showActions(el.dataset.kind,el.dataset.id,el.dataset.title||el.textContent.trim());}});
+function showActions(kind,id,label){
+  if(navigator.vibrate)navigator.vibrate(10);
+  $('actTitle').textContent=label.slice(0,60);
+  let html='';
+  if(kind==='task'&&id){
+    html=`<button class="actBtn" onclick="closeSheet('actionSheet');openEditSheet('${id}')">Edit task</button>
+      <button class="actBtn" onclick="closeSheet('actionSheet');toggleDone('${id}');renderDayView()">Toggle done</button>
+      <button class="actBtn danger" onclick="actDeleteTask('${id}')">Delete task</button>`;
+  }else if(kind==='event'&&id){
+    html=`<button class="actBtn" onclick="closeSheet('actionSheet');openEventSheet('${id}')">Edit event</button>
+      <button class="actBtn danger" onclick="actDeleteEvent('${id}')">Delete event</button>`;
+  }else if(kind==='plan'){
+    const L=label.toLowerCase();
+    const t=S.tasks.find(x=>!x.done&&(L.includes(x.title.toLowerCase())||x.title.toLowerCase().includes(L)));
+    closeDaySheet();
+    if(t)openTimerFor(t.id);
+    else{switchView('timer');toast('No matching task — pick one manually');}
+    return;
+  }else if(kind==='pblk'){
+    startSingleEdit(parseInt(id));
+    return;
+  }else{
+    html=`<div class="small" style="text-align:center;padding:8px 0 14px">Google event — edit it in Google Calendar</div>`;
+  }
+  $('actBtns').innerHTML=html+`<button class="actBtn" onclick="closeSheet('actionSheet')">Cancel</button>`;
+  openSheet('actionSheet');
+}
+function actDeleteTask(id){
+  const i=S.tasks.findIndex(x=>x.id===id);if(i<0)return;
+  const t=S.tasks[i];S.tasks.splice(i,1);delete S.timers[keyFor(t.id)];if(S.activeKey===keyFor(t.id))S.activeKey=null;save();
+  if(t.gcalEventId)gcalDeleteEvent(t);
+  closeSheet('actionSheet');renderTasks();renderCal();renderDayView();toast('Task deleted');
+}
+function actDeleteEvent(id){
+  S.events=S.events.filter(x=>x.id!==id);save();
+  closeSheet('actionSheet');renderCal();renderDayView();toast('Event deleted');
+}
+
+/* ================= GOOGLE — MULTI ACCOUNT ================= */
+/* S.gAccounts: [{email, main:bool, writeCal, visibleCals:{}}]; S.gTokens: {email:{token,exp}} (persisted ~1h) */
+let gCalsByAcct={},gEvents={};
+const GCOLORS=['#4D7FD6','#4FAE85','#D6904D','#D65C8E','#5CC7D6','#A06BD8'];
+const GSCOPE='https://www.googleapis.com/auth/calendar https://www.googleapis.com/auth/userinfo.email';
+function googleReady(){return typeof google!=='undefined'&&google.accounts;}
+function mainAcct(){return S.gAccounts.find(a=>a.main)||S.gAccounts[0]||null;}
+
+function requestToken(opts){ // promise wrapper
+  return new Promise((res)=>{
+    if(!S.settings.gClient||!googleReady()){res(null);return;}
+    try{
+      const tc=google.accounts.oauth2.initTokenClient({
+        client_id:S.settings.gClient,scope:GSCOPE,
+        callback:r=>res(r&&!r.error?r:null),
+        error_callback:()=>res(null)
+      });
+      tc.requestAccessToken(opts||{});
+    }catch(e){res(null);}
+  });
+}
+async function googleConnect(){ // explicit user action: add/connect an account
+  const cid=$('setGClient').value.trim()||S.settings.gClient;
+  if(!cid){toast('Paste your OAuth Client ID first');return;}
+  if(!googleReady()){toast('Google library not loaded — check connection');return;}
+  S.settings.gClient=cid;save();
+  const r=await requestToken({prompt:S.gAccounts.length?'select_account':'consent'});
+  if(!r){toast('Google sign-in was cancelled or blocked');return;}
+  // identify the account
+  let email=null;
+  try{
+    const ui=await fetch('https://www.googleapis.com/oauth2/v3/userinfo',{headers:{Authorization:'Bearer '+r.access_token}}).then(x=>x.json());
+    email=ui.email;
+  }catch(e){}
+  if(!email){toast('Could not read account email');return;}
+  S.gTokens[email]={token:r.access_token,exp:Date.now()+(r.expires_in-90)*1000};
+  let acct=S.gAccounts.find(a=>a.email===email);
+  if(!acct){acct={email,main:S.gAccounts.length===0,writeCal:'',visibleCals:{}};S.gAccounts.push(acct);}
+  save();
+  await loadGCalList(acct);
+  renderSettings();fetchGEventsForMonth();
+  toast(`Connected ${email}`);
+}
+async function tokenFor(acct,interactive=false){
+  const c=S.gTokens[acct.email];
+  if(c&&Date.now()<c.exp)return c.token;
+  // silent refresh using login_hint (works while the Google session cookie lives)
+  let r=await requestToken({prompt:'',login_hint:acct.email});
+  if(!r&&interactive)r=await requestToken({prompt:'select_account',login_hint:acct.email});
+  if(!r){acct.needsAuth=true;save();return null;}
+  acct.needsAuth=false;
+  S.gTokens[acct.email]={token:r.access_token,exp:Date.now()+(r.expires_in-90)*1000};
+  save();
+  return r.access_token;
+}
+async function gFetch(acct,path,opts={}){
+  const tok=await tokenFor(acct);
+  if(!tok)throw new Error('reauth');
+  const r=await fetch('https://www.googleapis.com/calendar/v3'+path,Object.assign({},opts,{
+    headers:Object.assign({'Authorization':'Bearer '+tok,'Content-Type':'application/json'},opts.headers||{})}));
+  if(r.status===401){acct.needsAuth=true;save();throw new Error('reauth');}
+  if(!r.ok)throw new Error('Google API '+r.status);
+  return r.status===204?null:r.json();
+}
+async function loadGCalList(acct){
+  try{
+    const d=await gFetch(acct,'/users/me/calendarList');
+    gCalsByAcct[acct.email]=d.items||[];
+    (d.items||[]).forEach(c=>{if(!(c.id in acct.visibleCals))acct.visibleCals[c.id]=true;});
+    if(acct.main&&!acct.writeCal){const p=(d.items||[]).find(c=>c.primary);if(p)acct.writeCal=p.id;}
+    save();
+  }catch(e){}
+}
+async function fetchGEventsForMonth(){
+  if(!S.gAccounts.length)return;
+  const y=calCursor.getFullYear(),m=calCursor.getMonth();
+  const tMin=new Date(y,m,1).toISOString(),tMax=new Date(y,m+1,1).toISOString();
+  const next={};
+  await Promise.all(S.gAccounts.map(async(acct,ai)=>{
+    const cals=(gCalsByAcct[acct.email]||[]).filter(c=>acct.visibleCals[c.id]);
+    await Promise.all(cals.map(async(c,i)=>{
+      try{
+        const d=await gFetch(acct,`/calendars/${encodeURIComponent(c.id)}/events?timeMin=${tMin}&timeMax=${tMax}&singleEvents=true&orderBy=startTime&maxResults=250`);
+        (d.items||[]).forEach(ev=>{
+          const st=ev.start||{},en=ev.end||{};
+          const ds=(st.date||st.dateTime||'').slice(0,10);if(!ds)return;
+          const allDay=!!st.date;
+          const hm=x=>x?new Date(x).toTimeString().slice(0,5):null;
+          (next[ds]=next[ds]||[]).push({summary:ev.summary,allDay,
+            start:allDay?null:hm(st.dateTime),end:allDay?null:hm(en.dateTime),
+            location:ev.location,col:c.backgroundColor||GCOLORS[(ai+i)%GCOLORS.length],_tf:ev.description==='flow-task'});
+        });
+      }catch(e){}
+    }));
+  }));
+  gEvents=next;
+  renderCal();renderSettings();
+}
+async function gcalSyncTask(t){
+  const acct=mainAcct();
+  if(!acct||!acct.writeCal)return;
+  try{
+    if(!t.date){if(t.gcalEventId)await gcalDeleteEvent(t);return;}
+    const tz=Intl.DateTimeFormat().resolvedOptions().timeZone;
+    let start,end;
+    if(t.startTime&&!(t.dateEnd&&t.dateEnd!==t.date)){
+      start={dateTime:`${t.date}T${t.startTime}:00`,timeZone:tz};
+      end={dateTime:`${t.date}T${t.endTime||t.startTime}:00`,timeZone:tz};
+    }else{
+      start={date:t.date};
+      const endD=new Date((t.dateEnd||t.date)+'T12:00');endD.setDate(endD.getDate()+1);
+      end={date:dateStrOf(endD.getFullYear(),endD.getMonth(),endD.getDate())};
+    }
+    const body={summary:(t.done?'✓ ':'')+t.title,description:'flow-task',start,end};
+    if(t.gcalEventId){
+      await gFetch(acct,`/calendars/${encodeURIComponent(acct.writeCal)}/events/${t.gcalEventId}`,{method:'PATCH',body:JSON.stringify(body)});
+    }else{
+      const ev=await gFetch(acct,`/calendars/${encodeURIComponent(acct.writeCal)}/events`,{method:'POST',body:JSON.stringify(body)});
+      t.gcalEventId=ev.id;save();
+    }
+    fetchGEventsForMonth();
+  }catch(e){}
+}
+async function gcalDeleteEvent(t){
+  const acct=mainAcct();if(!acct||!acct.writeCal)return;
+  try{await gFetch(acct,`/calendars/${encodeURIComponent(acct.writeCal)}/events/${t.gcalEventId}`,{method:'DELETE'});t.gcalEventId=null;save();fetchGEventsForMonth();}catch(e){}
+}
+async function gcalAddEvent(ev){
+  const acct=mainAcct();if(!acct||!acct.writeCal)return false;
+  try{
+    const tz=Intl.DateTimeFormat().resolvedOptions().timeZone;
+    const body={summary:ev.title,location:ev.location||undefined,
+      start:ev.startTime?{dateTime:`${ev.date}T${ev.startTime}:00`,timeZone:tz}:{date:ev.date},
+      end:ev.endTime?{dateTime:`${ev.date}T${ev.endTime}:00`,timeZone:tz}:(ev.startTime?{dateTime:`${ev.date}T${ev.startTime}:00`,timeZone:tz}:{date:ev.date})};
+    await gFetch(acct,`/calendars/${encodeURIComponent(acct.writeCal)}/events`,{method:'POST',body:JSON.stringify(body)});
+    return true;
+  }catch(e){return false;}
+}
+function setMainAcct(email){S.gAccounts.forEach(a=>a.main=a.email===email);save();renderSettings();}
+function removeAcct(email){
+  if(!confirm(`Disconnect ${email}?`))return;
+  S.gAccounts=S.gAccounts.filter(a=>a.email!==email);
+  delete S.gTokens[email];delete gCalsByAcct[email];
+  if(S.gAccounts.length&&!S.gAccounts.some(a=>a.main))S.gAccounts[0].main=true;
+  save();renderSettings();fetchGEventsForMonth();
+}
+async function reconnectAcct(email){
+  const acct=S.gAccounts.find(a=>a.email===email);if(!acct)return;
+  const tok=await tokenFor(acct,true);
+  if(tok){toast('Reconnected');await loadGCalList(acct);renderSettings();fetchGEventsForMonth();}
+  else toast('Could not reconnect — try again');
+}
+function toggleAcctCal(email,calId,on){
+  const acct=S.gAccounts.find(a=>a.email===email);if(!acct)return;
+  acct.visibleCals[calId]=on;save();fetchGEventsForMonth();
+}
+function setWriteCalFor(email,calId){
+  const acct=S.gAccounts.find(a=>a.email===email);if(!acct)return;
+  acct.writeCal=calId;save();toast('Write calendar set');
+}
+
+/* ================= SETTINGS ================= */
+function renderSettings(){
+  if(!$('settingsSheet').classList.contains('show'))return;
+  $('setPomoWork').value=S.settings.pomoWork;
+  $('setPomoBreak').value=S.settings.pomoBreak;
+  $('setOrKey').value=S.settings.orKey;
+  $('setOrModel').value=S.settings.orModel;
+  $('setGClient').value=S.settings.gClient;
+  $('typeManager').innerHTML=S.types.map((t,i)=>`
+    <div class="typeRow">
+      <button class="ord" onclick="moveType('${t.id}',-1)" ${i===0?'style="opacity:.25"':''}>▲</button>
+      <button class="ord" onclick="moveType('${t.id}',1)" ${i===S.types.length-1?'style="opacity:.25"':''}>▼</button>
+      <input type="color" value="${t.color}" onchange="updType('${t.id}','color',this.value)">
+      <input value="${esc(t.name)}" onchange="updType('${t.id}','name',this.value)" style="flex:1">
+      <button style="color:var(--danger);font-size:13px" onclick="delType('${t.id}')">Delete</button>
+    </div>`).join('');
+  $('gAcctList').innerHTML=S.gAccounts.map(a=>{
+    const cals=gCalsByAcct[a.email]||[];
+    return `<div class="acctCard">
+      <div class="acctHead">
+        <span class="em">${esc(a.email)}</span>
+        ${a.needsAuth?`<span class="badge err">Needs sign-in</span>`:a.main?`<span class="badge">Main</span>`:`<span class="badge ro">View only</span>`}
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:6px">
+        ${!a.main?`<button class="pbtn" style="padding:6px 11px;font-size:12px" onclick="setMainAcct('${esc(a.email)}')">Make main</button>`:''}
+        ${a.needsAuth?`<button class="pbtn blue" style="padding:6px 11px;font-size:12px" onclick="reconnectAcct('${esc(a.email)}')">Reconnect</button>`:''}
+        <button class="pbtn" style="padding:6px 11px;font-size:12px;color:var(--danger)" onclick="removeAcct('${esc(a.email)}')">Remove</button>
+      </div>
+      ${cals.map(c=>`<label class="calChk">
+        <input type="checkbox" ${a.visibleCals[c.id]?'checked':''} onchange="toggleAcctCal('${esc(a.email)}','${esc(c.id)}',this.checked)">
+        <span style="flex:1">${esc(c.summary)}</span>
+        ${a.main?`<input type="radio" name="writeCal" ${a.writeCal===c.id?'checked':''} onchange="setWriteCalFor('${esc(a.email)}','${esc(c.id)}')">`:''}
+      </label>`).join('')||`<p class="small">Calendars load after sign-in.</p>`}
+    </div>`;
+  }).join('');
+}
+function moveType(id,dir){
+  const i=S.types.findIndex(t=>t.id===id);
+  const j=i+dir;
+  if(i<0||j<0||j>=S.types.length)return;
+  [S.types[i],S.types[j]]=[S.types[j],S.types[i]];
+  save();renderSettings();renderTasks();
+}
+function updType(id,k,v){const t=typeOf(id);if(t){t[k]=k==='name'?v.trim():v;save();renderTasks();}}
+function delType(id){if(!confirm('Delete this type? Tasks keep existing without a type.'))return;S.types=S.types.filter(t=>t.id!==id);save();renderSettings();renderTasks();}
+function addType(){S.types.push({id:uid(),name:'New type',color:'#5CC7D6'});save();renderSettings();}
+function saveSettings(){
+  S.settings.pomoWork=parseInt($('setPomoWork').value)||25;
+  S.settings.pomoBreak=parseInt($('setPomoBreak').value)||5;
+  S.settings.orKey=$('setOrKey').value.trim();
+  S.settings.orModel=$('setOrModel').value.trim()||'openai/gpt-4o-mini';
+  S.settings.gClient=$('setGClient').value.trim();
+  save();closeSheet('settingsSheet');toast('Settings saved');
+}
+
+/* ================= AI ================= */
+async function orChat(messages,maxTokens=1600){
+  if(!S.settings.orKey)throw new Error('Add your OpenRouter API key in Settings first');
+  const r=await fetch('https://openrouter.ai/api/v1/chat/completions',{
+    method:'POST',headers:{'Authorization':'Bearer '+S.settings.orKey,'Content-Type':'application/json'},
+    body:JSON.stringify({model:S.settings.orModel,max_tokens:maxTokens,messages})});
+  if(!r.ok){const e=await r.text();throw new Error('OpenRouter '+r.status+': '+e.slice(0,140));}
+  const d=await r.json();return d.choices?.[0]?.message?.content||'';
+}
+function extractJSON(out){
+  const clean=out.replace(/```json|```/g,'').trim();
+  const m=clean.match(/\{[\s\S]*\}/);
+  return JSON.parse(m?m[0]:clean);
+}
+function planContext(date){
+  const open=S.tasks.filter(t=>!t.done&&(inRange(t,date)||(t.date&&(t.dateEnd||t.date)<date)||!t.date));
+  const lines=open.map(t=>{
+    const ty=typeOf(t.typeId);
+    const fixedTime=t.startTime&&!(t.dateEnd&&t.dateEnd!==t.date);
+    // REMAINING budget = original budget minus time already tracked (incl. in-progress)
+    const rem=t.estimateMin?Math.max(0,Math.round((t.estimateMin*60-taskTrackedSec(t.id))/60)):null;
+    // a budgeted task with no time left has nothing to schedule (unless it is a fixed-time block)
+    if(t.estimateMin&&rem<=0&&!fixedTime)return null;
+    const tf=fixedTime?` (FIXED at ${t.startTime}${t.endTime?'–'+t.endTime:''})`:'';
+    const status=t.date&&(t.dateEnd||t.date)<date?' (overdue)':!t.date?' (someday)':'';
+    const budget=rem!=null?` — schedule at most ${rem}min (REMAINING budget, hard cap; do not use the original budget)`:'';
+    return `- ${t.title}${ty?` [${ty.name}]`:''}${tf}${status}${budget}`;
+  }).filter(Boolean).join('\n');
+  const fixed=(gEvents[date]||[]).filter(e=>!e._tf&&e.start).map(e=>`- ${e.start}–${e.end||''}: ${e.summary}`).join('\n');
+  const now=new Date();
+  return `Date: ${date}${date===todayStr()?` (today, time now ${now.toTimeString().slice(0,5)})`:''}
+Open tasks:
+${lines||'(none)'}
+${fixed?`Fixed calendar events (never overlap these):\n${fixed}`:''}`;
+}
+const PLAN_SYS=`You are a pragmatic day planner for a busy CS student. Build a realistic time-blocked schedule from the open tasks.
+HARD RULES:
+- Schedule ONLY inside the given day window.
+- Never allocate more total minutes to a task than its remaining budget (the HARD CAP). Less is fine; more is forbidden.
+- Tasks marked FIXED happen exactly at their fixed time.
+- Never overlap fixed calendar events.
+- Include short breaks; include a meal if the window covers a mealtime.
+- If something cannot fit, leave it out and report it in "unscheduled" with a short reason, plus ONE sentence in "suggestion" about what to do next.
+Respond with ONLY valid JSON, no prose, no markdown:
+{"blocks":[{"start":"HH:MM","end":"HH:MM","title":"..."}],"unscheduled":[{"title":"...","reason":"..."}],"suggestion":"..."|null}
+24h times, blocks sorted by start.`;
+const minToHM=m=>String(Math.floor(m/60)%24).padStart(2,'0')+':'+String(Math.round(m%60)).padStart(2,'0');
+const normTitle=s=>String(s||'').toLowerCase().replace(/[^a-z0-9 ]/g,'').replace(/\s+/g,' ').trim();
+// tasks eligible for planning on a date, with EXACT remaining minutes
+function schedulableTasks(date){
+  return S.tasks.filter(t=>!t.done&&(inRange(t,date)||(t.date&&(t.dateEnd||t.date)<date)||!t.date)).map(t=>{
+    const fixed=t.startTime&&!(t.dateEnd&&t.dateEnd!==t.date)?{start:t.startTime,end:t.endTime}:null;
+    const remMin=t.estimateMin?Math.max(0,Math.round((t.estimateMin*60-taskTrackedSec(t.id))/60)):null;
+    return {id:t.id,title:t.title,norm:normTitle(t.title),remMin,fixed,
+            overdue:!!(t.date&&(t.dateEnd||t.date)<date)};
+  }).filter(t=>t.fixed||t.remMin===null||t.remMin>0);   // drop budget-exhausted, non-fixed tasks
+}
+function matchTaskByTitle(title,tasks){
+  const n=normTitle(title);if(!n)return null;
+  let best=null,bestScore=1e9;
+  for(const t of tasks){const tn=t.norm;if(!tn)continue;
+    if(tn===n||tn.includes(n)||n.includes(tn)){const sc=Math.abs(tn.length-n.length);if(sc<bestScore){bestScore=sc;best=t;}}}
+  return best;
+}
+// find the earliest start >= cursor that fits `dur` without hitting any obstacle, inside the window
+function placeAfter(cursor,dur,obstacles,winEnd){
+  let s=Math.max(0,cursor),guard=0;
+  const obs=obstacles.slice().sort((a,b)=>a.s-b.s);
+  while(guard++<500){
+    let bumped=false;
+    for(const o of obs){if(s<o.e&&s+dur>o.s){s=o.e;bumped=true;}}
+    if(s+dur>winEnd)return null;
+    if(!bumped)return {s,e:s+dur};
+  }
+  return null;
+}
+/* DETERMINISTIC layout: the model only suggests order/breaks; durations & placement are computed
+   here from each task's exact remaining budget, so a task ALWAYS gets its full remaining time. */
+function enforcePlan(rawBlocks,date,winStartHM,winEndHM){
+  const winStart=hmToMin(winStartHM),winEnd=hmToMin(winEndHM);
+  const tasks=schedulableTasks(date);
+  const obstacles=[];                              // hard blocks: real calendar events
+  (gEvents[date]||[]).filter(e=>!e._tf&&e.start).forEach(e=>{const s=hmToMin(e.start);let en=e.end?hmToMin(e.end):s+30;if(en<=s)en=s+30;obstacles.push({s,e:en});});
+  const out=[],placed=new Set(),unscheduled=[];
+  // 1) pin fixed-time tasks at their set times
+  tasks.filter(t=>t.fixed).forEach(t=>{
+    const s=hmToMin(t.fixed.start);let en=t.fixed.end?hmToMin(t.fixed.end):s+(t.remMin||30);if(en<=s)en=s+(t.remMin||30);
+    out.push({start:minToHM(s),end:minToHM(en),title:t.title});obstacles.push({s,e:en});placed.add(t.id);
+  });
+  // 2) turn the model's blocks into an ordered queue, with CORRECT durations
+  const queue=[];const raw=Array.isArray(rawBlocks)?rawBlocks:[];
+  raw.forEach(b=>{
+    const tk=matchTaskByTitle(b.title,tasks);
+    if(tk){if(placed.has(tk.id)||tk.fixed)return;placed.add(tk.id);
+      const dur=tk.remMin!=null?tk.remMin:Math.max(15,Math.round((hmToMin(b.end)-hmToMin(b.start))||30));
+      queue.push({title:tk.title,dur,req:b.start?hmToMin(b.start):null});
+    }else{
+      let dur=Math.round((hmToMin(b.end)-hmToMin(b.start))||10);if(!isFinite(dur)||dur<=0)dur=10;
+      queue.push({title:String(b.title||'Break'),dur:Math.max(5,dur),req:b.start?hmToMin(b.start):null,brk:true});
+    }
+  });
+  // 3) append any task the model forgot (overdue first), with its full remaining time
+  tasks.filter(t=>!t.fixed&&!placed.has(t.id)).sort((a,b)=>(b.overdue?1:0)-(a.overdue?1:0)).forEach(t=>{
+    placed.add(t.id);queue.push({title:t.title,dur:t.remMin!=null?t.remMin:30,req:null});
+  });
+  // 4) lay the queue out: requested start acts as an "earliest", everything packs & never overlaps
+  let cursor=winStart;
+  queue.forEach(item=>{
+    const desired=Math.max(item.req!=null?item.req:cursor,cursor,winStart);
+    const slot=placeAfter(desired,item.dur,obstacles,winEnd);
+    if(!slot){if(!item.brk)unscheduled.push({title:item.title,reason:`No room before ${winEndHM} for its remaining ${item.dur} min.`});return;}
+    out.push({start:minToHM(slot.s),end:minToHM(slot.e),title:item.title});
+    obstacles.push({s:slot.s,e:slot.e});cursor=slot.e;
+  });
+  out.sort((a,b)=>a.start.localeCompare(b.start));
+  const suggestion=unscheduled.length?'Move the leftover task(s) to another day or widen your time window.':null;
+  return {blocks:out,unscheduled,suggestion};
+}
+async function generatePlan(){
+  const date=$('planDate').value||todayStr();
+  const w1=$('planStart').value||'08:00',w2=$('planEnd').value||'22:00';
+  const btn=$('genPlanBtn');btn.innerHTML='<span class="spin"></span> Thinking…';btn.disabled=true;
+  try{
+    const out=await orChat([
+      {role:'system',content:PLAN_SYS},
+      {role:'user',content:`Day window: ${w1}–${w2}\n`+planContext(date)}
+    ]);
+    let raw=[];try{raw=extractJSON(out).blocks||[];}catch(e){}
+    const p=enforcePlan(raw,date,w1,w2);p.window={start:w1,end:w2};
+    S.plans[date]=p;save();renderPlan();renderCal();toast('Plan generated');
+  }catch(e){toast(e.message);}
+  btn.innerHTML='✦ Generate';btn.disabled=false;
+}
+async function revisePlan(){
+  const date=$('planDate').value||todayStr();
+  const inst=$('reviseInput').value.trim();
+  if(!inst){toast('Describe what to change');return;}
+  const p=S.plans[date];
+  if(!p||!p.blocks||!p.blocks.length){toast('Generate a plan first');return;}
+  toast('Revising…');
+  try{
+    const out=await orChat([
+      {role:'system',content:'Revise the day plan JSON according to the instruction, keeping all the HARD RULES of the original planner (budgets are hard caps, fixed events never overlapped, stay inside the window). Respond with ONLY valid JSON in the same format: {"blocks":[...],"unscheduled":[...],"suggestion":...}.'},
+      {role:'user',content:`Window: ${p.window?p.window.start+'–'+p.window.end:'08:00–22:00'}\nCurrent plan:\n${JSON.stringify(p)}\n\nContext:\n${planContext(date)}\n\nInstruction: ${inst}`}
+    ]);
+    let raw=[];try{raw=extractJSON(out).blocks||[];}catch(e){}
+    const w=p.window||{start:'08:00',end:'22:00'};
+    const np=enforcePlan(raw,date,w.start,w.end);np.window=w;
+    S.plans[date]=np;save();renderPlan();renderCal();
+    $('reviseInput').value='';toast('Plan revised');
+  }catch(e){toast(e.message);}
+}
+function deletePlan(){
+  const date=$('planDate').value||todayStr();
+  if(!S.plans[date]){toast('No plan to delete');return;}
+  if(!confirm('Delete this day\'s plan?'))return;
+  delete S.plans[date];planEditing=false;singleEditIdx=null;$('editPlanBtn').textContent='Edit';
+  save();renderPlan();renderCal();if(dayViewDate)renderDayView();toast('Plan deleted');
+}
+let planEditing=false,singleEditIdx=null;
+function startSingleEdit(i){
+  if(navigator.vibrate)navigator.vibrate(10);
+  planEditing=false;$('editPlanBtn').textContent='Edit';
+  singleEditIdx=i;renderPlan();
+}
+function saveSingleEdit(i){
+  const date=$('planDate').value||todayStr();
+  const row=document.querySelector('#planBlocks .pedit');
+  if(row){
+    const[s,e,t]=row.querySelectorAll('input');
+    if(s.value&&t.value.trim())S.plans[date].blocks[i]={start:s.value,end:e.value||s.value,title:t.value.trim()};
+    S.plans[date].blocks.sort((a,b)=>a.start.localeCompare(b.start));
+  }
+  singleEditIdx=null;save();renderPlan();renderCal();if(dayViewDate)renderDayView();
+}
+function resetWin(which){
+  if(which==='start')$('planStart').value='08:00';else $('planEnd').value='22:00';
+}
+function togglePlanEdit(){
+  const date=$('planDate').value||todayStr();
+  if(!planEditing&&(!S.plans[date]||!S.plans[date].blocks))S.plans[date]={blocks:[{start:'09:00',end:'10:00',title:'New block'}],unscheduled:[],suggestion:null};
+  planEditing=!planEditing;$('editPlanBtn').textContent=planEditing?'Done':'Edit';
+  if(!planEditing)savePlanEdits();renderPlan();
+}
+function savePlanEdits(){
+  const date=$('planDate').value||todayStr();
+  const rows=[...document.querySelectorAll('#planBlocks .pedit')];
+  if(!rows.length)return;
+  const blocks=rows.map(r=>{const[s,e,t]=r.querySelectorAll('input');return{start:s.value,end:e.value,title:t.value.trim()};}).filter(b=>b.start&&b.title);
+  blocks.sort((a,b)=>a.start.localeCompare(b.start));
+  const old=S.plans[date]||{};
+  S.plans[date]={blocks,unscheduled:old.unscheduled||[],suggestion:old.suggestion||null,window:old.window};
+  save();renderCal();if(dayViewDate)renderDayView();
+}
+function addPlanBlock(){
+  const date=$('planDate').value||todayStr();
+  if(!S.plans[date])S.plans[date]={blocks:[],unscheduled:[],suggestion:null};
+  S.plans[date].blocks.push({start:'09:00',end:'10:00',title:'New block'});
+  save();renderPlan();
+}
+function delPlanBlock(i){
+  const date=$('planDate').value||todayStr();
+  S.plans[date].blocks.splice(i,1);save();renderPlan();renderCal();
+}
+function renderPlan(){
+  const dEl=$('planDate');
+  if(!dEl.value)dEl.value=todayStr();
+  const p=S.plans[dEl.value];
+  const el=$('planBlocks'),warn=$('planWarn');
+  warn.innerHTML='';
+  if(p&&p.window){$('planStart').value=p.window.start;$('planEnd').value=p.window.end;}
+  if(!p||(!p.blocks?.length&&!p.legacy)){el.innerHTML=`<div class="empty card">No plan yet. Set your day window and Generate ✦</div>`;return;}
+  if(planEditing){
+    el.innerHTML=(p.blocks||[]).map((b,i)=>`<div class="pedit">
+      <input class="t1" type="time" value="${b.start}"><input class="t1" type="time" value="${b.end}">
+      <input class="t2" value="${esc(b.title)}"><button onclick="delPlanBlock(${i})">✕</button></div>`).join('')+
+      `<button class="pbtn" style="margin-top:6px" onclick="savePlanEdits();addPlanBlock()">+ Add block</button>`;
+    return;
+  }
+  let html=(p.blocks||[]).map((b,i)=>{
+    if(i===singleEditIdx)return `<div class="pedit">
+      <input class="t1" type="time" value="${b.start}"><input class="t1" type="time" value="${b.end}">
+      <input class="t2" value="${esc(b.title)}"><button class="okBtn" onclick="saveSingleEdit(${i})">✓</button>
+      <button onclick="delPlanBlock(${i});singleEditIdx=null">✕</button></div>`;
+    return `<div class="pblk lp" data-kind="pblk" data-id="${i}" data-title="${esc(b.title)}" style="animation-delay:${i*40}ms">
+      <div class="rail"></div><div class="tm">${fmt12(b.start)}–${fmt12(b.end)}</div><div class="ti">${esc(b.title)}</div></div>`;
+  }).join('');
+  if(p.legacy)html+=`<div class="card" style="white-space:pre-wrap;font-size:13.5px;color:var(--sub)">${esc(p.legacy)}</div>`;
+  el.innerHTML=html;
+  if(p.unscheduled&&p.unscheduled.length){
+    warn.innerHTML=`<div class="warnCard"><b>⚠ Plan wasn't fully feasible</b>
+      Couldn't fit:<ul>${p.unscheduled.map(u=>`<li>${esc(u.title)}${u.reason?` — ${esc(u.reason)}`:''}</li>`).join('')}</ul>
+      ${p.suggestion?esc(p.suggestion):''}</div>`;
+  }
+}
+$('planDate').addEventListener('change',()=>{planEditing=false;singleEditIdx=null;$('editPlanBtn').textContent='Edit';renderPlan();});
+
+async function scanPoster(input){
+  const file=input.files[0];if(!file)return;input.value='';
+  toast('Reading poster…');
+  try{
+    const b64=await new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result);r.onerror=rej;r.readAsDataURL(file);});
+    const out=await orChat([
+      {role:'system',content:`Extract the event from this image. Today is ${todayStr()}. Respond with ONLY JSON, no fences: {"title":string,"date":"YYYY-MM-DD","startTime":"HH:MM"|null,"endTime":"HH:MM"|null,"location":string|null}. If year missing assume next occurrence. If no event: {"error":"reason"}.`},
+      {role:'user',content:[{type:'image_url',image_url:{url:b64}},{type:'text',text:'Extract the event details.'}]}
+    ],500);
+    const ev=extractJSON(out);
+    if(ev.error)throw new Error(ev.error);
+    if(!ev.title||!ev.date)throw new Error('Could not find a title/date');
+    if(!confirm(`Add event?\n\n${ev.title}\n${ev.date}${ev.startTime?' '+ev.startTime:''}${ev.location?'\n@ '+ev.location:''}`))return;
+    S.events.push(Object.assign({id:uid()},ev));save();
+    const ok=await gcalAddEvent(ev);
+    toast(ok?'Added to app + Google Calendar':'Added to app calendar');
+    renderCal();
+  }catch(e){toast('Poster scan failed: '+e.message);}
+}
+
+/* ================= PASTE IMPORT ================= */
+async function importTasks(){
+  const text=$('importText').value.trim();
+  if(!text){toast('Paste something first');return;}
+  const btn=$('importBtn');btn.innerHTML='<span class="spin"></span> Parsing…';btn.disabled=true;
+  let parsed=null;
+  if(S.settings.orKey){
+    try{
+      const out=await orChat([
+        {role:'system',content:`Parse the user's to-do text into tasks. Today is ${todayStr()}. Resolve relative dates (e.g. "by Friday"). Existing types: ${S.types.map(t=>t.name).join(', ')}. Respond ONLY with JSON: {"tasks":[{"title":string,"date":"YYYY-MM-DD"|null,"dateEnd":"YYYY-MM-DD"|null,"startTime":"HH:MM"|null,"endTime":"HH:MM"|null,"estimateMin":number|null,"type":string|null}]}. Untimed/undated items get date=today. Use null for unknown fields.`},
+        {role:'user',content:text}
+      ],1600);
+      parsed=extractJSON(out).tasks;
+    }catch(e){toast('AI parse failed — adding lines as-is');}
+  }
+  if(!Array.isArray(parsed)){
+    parsed=text.split('\n').map(l=>l.replace(/^[-*•\d.\s)]+/,'').trim()).filter(Boolean).map(title=>({title,date:todayStr()}));
+  }
+  let n=0;
+  parsed.forEach(p=>{
+    if(!p.title)return;
+    let typeId=null;
+    if(p.type){
+      let ty=S.types.find(t=>t.name.toLowerCase()===String(p.type).toLowerCase());
+      if(!ty){ty={id:uid(),name:p.type,color:'#'+['4D7FD6','4FAE85','D6904D','A06BD8','D65C8E','5CC7D6'][S.types.length%6]};S.types.push(ty);}
+      typeId=ty.id;
+    }
+    let est=p.estimateMin||null;
+    if(p.startTime&&p.endTime){let d=hmToMin(p.endTime)-hmToMin(p.startTime);if(d<=0)d+=1440;est=Math.round(d);}
+    const t={id:uid(),title:String(p.title),typeId,date:p.date||todayStr(),dateEnd:p.dateEnd||null,
+      startTime:p.startTime||null,endTime:p.endTime||null,estimateMin:est,spentSec:0,done:false,createdAt:Date.now()};
+    S.tasks.push(t);n++;gcalSyncTask(t);
+  });
+  save();renderTasks();renderCal();
+  $('importText').value='';btn.innerHTML='Add tasks';btn.disabled=false;
+  closeSheet('importSheet');
+  toast(`Added ${n} task${n===1?'':'s'}`);
+}
+
+/* ================= INIT ================= */
+function init(){
+  $('headDate').textContent=new Date().toLocaleDateString('en',{weekday:'long',month:'long',day:'numeric'});
+  const a=AT();if(a)timerMode=a.mode;
+  renderTasks();renderTimerView();renderCal();renderPlan();
+  // sheet gestures
+  attachSheetGestures($('daySheet'),{scrollEl:'dvScroll',onClose:closeDaySheet,allowRight:true});
+  ['addSheet','settingsSheet','importSheet','eventSheet','actionSheet','analyticsSheet'].forEach(id=>
+    attachSheetGestures($(id),{onClose:()=>closeSheet(id)}));
+  // google: silent reconnect for all saved accounts using cached tokens / session
+  if(S.gAccounts.length&&S.settings.gClient){
+    const wait=setInterval(()=>{if(googleReady()){clearInterval(wait);
+      (async()=>{
+        for(const acct of S.gAccounts){await loadGCalList(acct);}
+        fetchGEventsForMonth();
+      })();
+    }},400);
+    setTimeout(()=>clearInterval(wait),9000);
+  }
+  setInterval(()=>{if(dayViewDate===todayStr())renderDayView();},60000);
+  setInterval(bankAllRunning,20000);   // persist study time every 20s with the correct date
+  // Keep timers RUNNING across screen-off / app-exit. iOS suspends JS in the background, but the
+  // clock is wall-clock based (startTs), so on return we just bank progress and the display catches up
+  // — exactly as if it had been counting the whole time.
+  function persistTimers(){let ch=false;for(const k in S.timers){if(S.timers[k].running){bankTimer(k);ch=true;}
+    if(S.timers[k]._autoPaused){S.timers[k].running=true;S.timers[k].startTs=Date.now();delete S.timers[k]._autoPaused;ch=true;}}if(ch)save();}
+  document.addEventListener('visibilitychange',()=>{
+    persistTimers();
+    if(!document.hidden){renderTimerView();renderTasks();renderCal();}
+  });
+  window.addEventListener('pagehide',persistTimers);
+}
+init();
+</script>
+</body>
+</html>
 <meta name="apple-mobile-web-app-title" content="Flow">
 <meta name="theme-color" content="#0B0F15">
 <link rel="manifest" href="manifest.json">
