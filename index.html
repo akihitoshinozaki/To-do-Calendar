@@ -50,7 +50,8 @@ h2.sec{font-size:12.5px;font-weight:700;text-transform:uppercase;letter-spacing:
 .segs button.on{color:var(--ink);background:var(--card2);box-shadow:0 2px 8px rgba(0,0,0,.4),inset 0 0 0 1px var(--line)}
 
 .card{background:var(--card);border:1px solid var(--hair);border-radius:var(--r);padding:14px 16px;margin-bottom:10px}
-.task{display:flex;align-items:center;gap:12px;background:var(--card);border:1px solid var(--hair);border-radius:var(--r);padding:13px 15px;margin-bottom:9px;transition:transform .15s var(--spring);animation:taskIn .3s var(--spring) backwards}
+.task{display:flex;align-items:center;gap:12px;background:var(--card);border:1px solid var(--hair);border-radius:var(--r);padding:13px 15px;margin-bottom:9px;transition:transform .15s var(--spring)}
+#taskList.anim .task{animation:taskIn .3s var(--spring) backwards}
 .task:active{transform:scale(.985)}
 .task.done{opacity:.4}
 .task.done .t-title{text-decoration:line-through}
@@ -435,6 +436,20 @@ h2.sec{font-size:12.5px;font-weight:700;text-transform:uppercase;letter-spacing:
   <div id="gAcctList"></div>
   <button class="pbtn blue" onclick="googleConnect()">+ Connect a Google account</button>
   <p class="small" style="margin-top:8px">The account marked <b>Main</b> is where tasks & scanned events are written. Others are view-only. Checkboxes choose which calendars show.</p>
+  <h2 class="sec">Data &amp; backup</h2>
+  <div class="planBtns" style="margin:0 0 6px">
+    <button class="pbtn sm" onclick="exportBackup()">Export backup</button>
+    <button class="pbtn sm" onclick="document.getElementById('importFile').click()">Import backup</button>
+    <input type="file" id="importFile" accept=".json,application/json" style="display:none" onchange="importBackup(this)">
+  </div>
+  <p class="small">Backup includes tasks, types, sessions, plans and events — not your API keys. iOS can evict web-app storage that hasn't been opened in a long while, so export occasionally.</p>
+
+  <h2 class="sec">Jarvis sync</h2>
+  <p class="small" style="margin-bottom:8px">Mirrors your tasks/sessions/plans to a private GitHub Gist so your Jarvis server can read them for the morning briefing. Create a gist (any content, filename <b>flow-state.json</b>) and a token with only the <b>gist</b> scope.</p>
+  <div class="frow"><label>GitHub token (gist scope)</label><input id="setGistToken" type="password" placeholder="ghp_…"></div>
+  <div class="frow"><label>Gist ID</label><input id="setGistId" placeholder="e.g. 5f2a…"></div>
+  <div class="planBtns" style="margin:0"><button class="pbtn sm" onclick="jarvisPush(true)">Push now</button><span class="small" id="jarvisStatus" style="align-self:center"></span></div>
+
   <div class="sheetBtns"><button class="pbtn blue" onclick="saveSettings()">Save settings</button></div>
 </div>
 
@@ -453,7 +468,7 @@ const LS_KEY='flow_state_v1';
 const defaults={
   tasks:[],sessions:[],events:[],plans:{},
   types:[{id:'t1',name:'Study',color:'#4D7FD6'},{id:'t2',name:'Research',color:'#4FAE85'},{id:'t3',name:'Personal',color:'#D6904D'}],
-  settings:{pomoWork:25,pomoBreak:5,orKey:'',orModel:'openai/gpt-4o-mini',gClient:''},
+  settings:{pomoWork:25,pomoBreak:5,orKey:'',orModel:'openai/gpt-4o-mini',gClient:'',gistToken:'',gistId:''},
   gAccounts:[], gTokens:{}, timers:{}, activeKey:null
 };
 let S=load();
@@ -477,7 +492,7 @@ function load(){
     return st;}}catch(e){}
   return JSON.parse(JSON.stringify(defaults));
 }
-function save(){try{localStorage.setItem(LS_KEY,JSON.stringify(S));}catch(e){toast('Could not save — storage unavailable');}}
+function save(){try{localStorage.setItem(LS_KEY,JSON.stringify(S));}catch(e){toast('Could not save — storage unavailable');}jarvisPushSoon();}
 const $=id=>document.getElementById(id);
 const uid=()=>Math.random().toString(36).slice(2,10)+Date.now().toString(36);
 const todayStr=()=>{const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');};
@@ -497,7 +512,7 @@ function switchView(v){
   $('view-'+v).classList.add('active');
   document.querySelectorAll('#tabbar .tab').forEach(x=>x.classList.toggle('active',x.dataset.view===v));
   $('headTitle').innerHTML=VIEW_TITLES[v]+'<i>.</i>';
-  if(v==='tasks')renderTasks();if(v==='cal')renderCal();if(v==='timer')renderTimerView();if(v==='plan')renderPlan();
+  if(v==='tasks')renderTasks(true);if(v==='cal')renderCal();if(v==='timer')renderTimerView();if(v==='plan')renderPlan();
 }
 const TOP_SHEETS=['addSheet','eventSheet','importSheet','settingsSheet','actionSheet','analyticsSheet'];
 function refreshDim(){$('dim').classList.toggle('show',TOP_SHEETS.some(id=>$(id).classList.contains('show'))||$('daySheet').classList.contains('show'));}
@@ -542,7 +557,7 @@ $('taskSegs').addEventListener('click',e=>{
   const b=e.target.closest('button');if(!b)return;
   seg=b.dataset.seg;
   document.querySelectorAll('#taskSegs button').forEach(x=>x.classList.toggle('on',x===b));
-  renderTasks();
+  renderTasks(true);
 });
 function taskRemaining(t){if(!t.estimateMin)return null;return t.estimateMin*60-(t.spentSec||0);}
 function ringSVG(t){
@@ -577,12 +592,12 @@ function taskRow(t,i=0){
     ${!t.done?`<button class="t-play" onclick="startTaskTimer('${t.id}')">▶</button>`:''}
   </div>`;
 }
-function renderTasks(){
-  const el=$('taskList'),td=todayStr();
+function renderTasks(anim){
+  const el=$('taskList'),td=todayStr();el.classList.toggle('anim',!!anim);
   let html='';const open=S.tasks.filter(t=>!t.done);
   if(seg==='today'){
     const list=open.filter(t=>t.date&&t.date<=td&&td<=(t.dateEnd||t.date)).sort((a,b)=>(a.startTime||'99')<(b.startTime||'99')?-1:1);
-    const overdue=open.filter(t=>t.date&&(t.dateEnd||t.date)<td);
+    const overdue=open.filter(t=>t.date&&(t.dateEnd||t.date)<td).sort((a,b)=>a.date.localeCompare(b.date));
     html+=list.length?list.map(taskRow).join(''):`<div class="empty">Nothing for today. Tap + to add.</div>`;
     if(overdue.length)html+=`<h2 class="sec" style="color:var(--warn)">Overdue</h2>`+overdue.map(taskRow).join('');
     const someday=open.filter(t=>!t.date);
@@ -604,7 +619,14 @@ function renderTasks(){
   }
   el.innerHTML=html;
 }
-function toggleDone(id){const t=S.tasks.find(x=>x.id===id);if(!t)return;t.done=!t.done;t.doneAt=t.done?Date.now():null;save();renderTasks();gcalSyncTask(t);}
+function toggleDone(id){
+  const t=S.tasks.find(x=>x.id===id);if(!t)return;
+  t.done=!t.done;t.doneAt=t.done?Date.now():null;
+  if(t.done){const k=keyFor(id);
+    if(S.timers[k]){bankTimer(k);delete S.timers[k];if(S.activeKey===k)S.activeKey=null;}
+    if(navigator.vibrate)navigator.vibrate(8);}
+  save();renderTasks();renderTimerView();gcalSyncTask(t);
+}
 
 /* ----- add/edit ----- */
 function setWhen(w){
@@ -613,7 +635,7 @@ function setWhen(w){
   $('dateRow').style.display=(w==='date'||w==='range')?'flex':'none';
   $('aDateEnd').style.display=w==='range'?'block':'none';
   $('rangeArrow').style.display=w==='range'?'inline':'none';
-  $('tfWrap').style.opacity=w==='someday'?.4:1;
+  $('tfWrap').style.opacity=(w==='someday'||w==='range')?.4:1;
 }
 function tfChanged(){
   const s=$('aStart').value,e=$('aEnd').value,info=$('tfInfo');
@@ -729,7 +751,6 @@ const NK='__none';
 const keyFor=id=>id||NK;
 function AT(){return S.activeKey?(S.timers[S.activeKey]||null):null;}
 function timerElapsed(key){const t=S.timers[key];if(!t)return 0;return t.accumSec+(t.running?(Date.now()-t.startTs)/1000:0);}
-function elapsedSec(){return S.activeKey?timerElapsed(S.activeKey):0;}
 function workElapsed(key){
   const t=S.timers[key];if(!t)return 0;
   if(t.mode==='pomodoro'&&t.phase==='break')return 0;   // break time never counts as study
@@ -768,7 +789,9 @@ function startTaskTimer(taskId){
 function switchTimerTask(newId){
   const wasRunning=AT()?AT().running:false;
   pauseActive();S.activeKey=keyFor(newId);
-  const t=ensureTimer(newId);t.mode=timerMode;
+  const existed=!!S.timers[keyFor(newId)];
+  const t=ensureTimer(newId);
+  if(existed)timerMode=t.mode;else t.mode=timerMode;   // resuming a clock keeps ITS mode; new clocks take the UI mode
   if(wasRunning&&!t.running){t.running=true;t.startTs=Date.now();}
   save();renderTasks();renderTimerView();
 }
@@ -784,7 +807,9 @@ function setTimerMode(m){
 }
 function toggleTimer(){
   let a=AT();
-  if(!a){const id=$('timerTask').value||null;S.activeKey=keyFor(id);a=ensureTimer(id);a.mode=timerMode;}
+  if(!a){const id=$('timerTask').value||null;S.activeKey=keyFor(id);
+    const existed=!!S.timers[keyFor(id)];a=ensureTimer(id);
+    if(existed)timerMode=a.mode;else a.mode=timerMode;}
   if(a.running){bankTimer(S.activeKey);a.accumSec=timerElapsed(S.activeKey);a.running=false;}
   else{a.startTs=Date.now();a.running=true;}
   save();renderTimerView();
@@ -879,7 +904,7 @@ function renderTimerView(){
     if((a.phase||'work')==='work'){phaseBtn.textContent='Break →';phaseBtn.style.background='var(--ok)';phaseBtn.style.color='#fff';}
     else{phaseBtn.textContent='Focus →';phaseBtn.style.background='var(--blue)';phaseBtn.style.color='#fff';}
   }else{start.textContent=a.running?'Pause':'Resume';fin.style.display='inline-block';}
-  info.textContent=task?(task.estimateMin?`${task.title} — ${fmtMin(task.estimateMin)} budget, ${fmtMin(Math.round((task.spentSec||0)/60))} logged`:task.title):'';
+  info.textContent=task?(task.estimateMin?`${task.title} — ${fmtMin(task.estimateMin)} budget, ${fmtMin(Math.round(taskTrackedSec(task.id)/60))} tracked`:task.title):'';
   if(!tick)tick=setInterval(()=>{const x=AT();if(x&&x.running)renderTimerView();},500);
 }
 function tryBuzz(){if(navigator.vibrate)navigator.vibrate([200,100,200]);
@@ -905,7 +930,9 @@ function renderAnalytics(){
   const monthSec=sess.filter(s=>s.date.slice(0,7)===mKey).reduce((a,s)=>a+s.durSec,0);
   const daysStudied=new Set(sess.filter(s=>s.durSec>0).map(s=>s.date));
   const avg=daysStudied.size?total/daysStudied.size:0;
-  let streak=0;{let d=new Date(today);while(daysStudied.has(ds(d))){streak++;d.setDate(d.getDate()-1);}}
+  let streak=0;{let d=new Date(today);
+    if(!daysStudied.has(ds(d)))d.setDate(d.getDate()-1);   // today not studied yet — streak counts from yesterday
+    while(daysStudied.has(ds(d))){streak++;d.setDate(d.getDate()-1);}}
   // last 14 days
   const bars=[];for(let i=13;i>=0;i--){const d=new Date(today);d.setDate(today.getDate()-i);const key=ds(d);
     bars.push({label:d.toLocaleDateString('en',{weekday:'narrow'}),sec:sess.filter(s=>s.date===key).reduce((a,s)=>a+s.durSec,0),today:i===0});}
@@ -983,11 +1010,17 @@ function moveDay(d){const dt=new Date(dayViewDate+'T12:00');dt.setDate(dt.getDat
   if(dt.getMonth()!==calCursor.getMonth()||dt.getFullYear()!==calCursor.getFullYear()){calCursor=new Date(dt.getFullYear(),dt.getMonth(),1);renderCal();fetchGEventsForMonth();}
   renderDayView();}
 function layoutLanes(blocks){
-  blocks.sort((a,b)=>a.s-b.s);
-  const lanes=[];
-  blocks.forEach(b=>{let l=0;while(lanes[l]&&lanes[l]>b.s)l++;lanes[l]=b.e;b.lane=l;});
-  const maxL=Math.max(0,...blocks.map(b=>b.lane));
-  blocks.forEach(b=>b.lanes=maxL+1);
+  blocks.sort((a,b)=>a.s-b.s||a.e-b.e);
+  let cluster=[],lanes=[],clusterEnd=-1;
+  const flush=()=>{if(!cluster.length)return;const n=Math.max(0,...cluster.map(b=>b.lane))+1;cluster.forEach(b=>b.lanes=n);cluster=[];lanes=[];};
+  for(const b of blocks){
+    if(cluster.length&&b.s>=clusterEnd)flush();           // no overlap with the running cluster -> new cluster
+    let l=0;while(lanes[l]!=null&&lanes[l]>b.s)l++;
+    lanes[l]=b.e;b.lane=l;cluster.push(b);
+    clusterEnd=Math.max(clusterEnd===-1?0:clusterEnd,b.e);
+    if(cluster.length===1)clusterEnd=b.e;
+  }
+  flush();
   return blocks;
 }
 function renderDayView(){
@@ -1328,6 +1361,8 @@ function renderSettings(){
   $('setOrKey').value=S.settings.orKey;
   $('setOrModel').value=S.settings.orModel;
   $('setGClient').value=S.settings.gClient;
+  $('setGistToken').value=S.settings.gistToken||'';
+  $('setGistId').value=S.settings.gistId||'';
   $('typeManager').innerHTML=S.types.map((t,i)=>`
     <div class="typeRow">
       <button class="ord" onclick="moveType('${t.id}',-1)" ${i===0?'style="opacity:.25"':''}>▲</button>
@@ -1372,6 +1407,8 @@ function saveSettings(){
   S.settings.orKey=$('setOrKey').value.trim();
   S.settings.orModel=$('setOrModel').value.trim()||'openai/gpt-4o-mini';
   S.settings.gClient=$('setGClient').value.trim();
+  S.settings.gistToken=$('setGistToken').value.trim();
+  S.settings.gistId=$('setGistId').value.trim();
   save();closeSheet('settingsSheet');toast('Settings saved');
 }
 
@@ -1669,6 +1706,61 @@ async function importTasks(){
   $('importText').value='';btn.innerHTML='Add tasks';btn.disabled=false;
   closeSheet('importSheet');
   toast(`Added ${n} task${n===1?'':'s'}`);
+}
+
+/* ================= DATA: BACKUP & JARVIS SYNC ================= */
+function snapshotData(){return {app:'flow',exportedAt:new Date().toISOString(),
+  tasks:S.tasks,types:S.types,sessions:S.sessions,plans:S.plans,events:S.events};}
+function exportBackup(){
+  const data=Object.assign(snapshotData(),{settings:{pomoWork:S.settings.pomoWork,pomoBreak:S.settings.pomoBreak,orModel:S.settings.orModel,gClient:S.settings.gClient}});
+  const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);
+  a.download='flow-backup-'+todayStr()+'.json';document.body.appendChild(a);a.click();
+  setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},500);
+  toast('Backup exported');
+}
+function importBackup(input){
+  const file=input.files[0];if(!file)return;input.value='';
+  const r=new FileReader();
+  r.onload=()=>{
+    try{
+      const d=JSON.parse(r.result);
+      if(!Array.isArray(d.tasks))throw new Error('not a Flow backup');
+      if(!confirm(`Replace your current tasks, types, sessions, plans and events with this backup from ${d.exportedAt?d.exportedAt.slice(0,10):'?'}? Your API keys and Google accounts stay as they are.`))return;
+      S.tasks=d.tasks;S.types=d.types||S.types;S.sessions=d.sessions||[];S.plans=d.plans||{};S.events=d.events||[];
+      if(d.settings){S.settings.pomoWork=d.settings.pomoWork||S.settings.pomoWork;S.settings.pomoBreak=d.settings.pomoBreak||S.settings.pomoBreak;
+        if(d.settings.orModel)S.settings.orModel=d.settings.orModel;if(d.settings.gClient&&!S.settings.gClient)S.settings.gClient=d.settings.gClient;}
+      S.timers={};S.activeKey=null;
+      save();renderTasks();renderCal();renderPlan();renderTimerView();renderSettings();
+      toast('Backup imported');
+    }catch(e){toast('Import failed: '+e.message);}
+  };
+  r.readAsText(file);
+}
+let jarvisT=null,jarvisBusy=false;
+function jarvisPushSoon(){                          // debounced auto-mirror after any change
+  if(!S.settings.gistToken||!S.settings.gistId)return;
+  clearTimeout(jarvisT);jarvisT=setTimeout(()=>jarvisPush(false),30000);
+}
+async function jarvisPush(manual){
+  if(!S.settings.gistToken||!S.settings.gistId){if(manual)toast('Add a gist token and ID first');return;}
+  if(jarvisBusy)return;jarvisBusy=true;
+  const st=$('jarvisStatus');
+  try{
+    if(manual&&st)st.textContent='Pushing…';
+    const r=await fetch('https://api.github.com/gists/'+encodeURIComponent(S.settings.gistId),{
+      method:'PATCH',
+      headers:{'Authorization':'Bearer '+S.settings.gistToken,'Accept':'application/vnd.github+json','Content-Type':'application/json'},
+      body:JSON.stringify({files:{'flow-state.json':{content:JSON.stringify(snapshotData())}}})
+    });
+    if(!r.ok)throw new Error('GitHub '+r.status);
+    if(st)st.textContent='Synced '+new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
+    if(manual)toast('Pushed to Jarvis gist');
+  }catch(e){
+    if(st)st.textContent='Sync failed';
+    if(manual)toast('Jarvis push failed: '+e.message);
+  }
+  jarvisBusy=false;
 }
 
 /* ================= INIT ================= */
